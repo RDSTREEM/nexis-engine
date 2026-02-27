@@ -2,7 +2,11 @@ glcontext==3.0.0
 markdown-it-py==4.0.0
 mdurl==0.1.2
 moderngl==5.12.0
+moderngl-window==3.1.1
 numpy==2.4.2
+pillow==12.1.1
 pygame==2.6.1
+pyglet==2.1.13
+pyglm==2.8.3
 Pygments==2.19.2
 rich==14.3.3

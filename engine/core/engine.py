@@ -1,7 +1,7 @@
 import pygame
 from engine.core.time import Time
 from engine.core.logger import setup_logger
-
+from engine.rendering.renderer import Renderer
 
 class Engine:
     def __init__(self, width=1280, height=720, title="Nexis Engine"):
@@ -24,6 +24,8 @@ class Engine:
         self.clock = pygame.time.Clock()
 
         self.logger.info("Engine initialized.")
+
+        self.renderer = Renderer()
 
     def run(self):
         self.running = True
@@ -50,6 +52,5 @@ class Engine:
 
     def update(self):
         pass
-
     def render(self):
-        pass
+        self.renderer.render()
