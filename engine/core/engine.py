@@ -6,6 +6,7 @@ from engine.scene.scene_manager import SceneManager
 from engine.scene.scene import Scene
 from engine.scene.game_object import GameObject
 from engine.components.mesh_renderer import MeshRenderer
+from engine.components.camera import Camera
 
 class Engine:
     def __init__(self, width=1280, height=720, title="Nexis Engine"):
@@ -31,11 +32,21 @@ class Engine:
 
         self.renderer = Renderer()
         self.scene_manager = SceneManager()
+
         scene = Scene("Main Scene")
+
         triangle_object = GameObject("Triangle")
         triangle_object.add_component(MeshRenderer, self.renderer.ctx)
         scene.add_object(triangle_object)
+
+        camera_object = GameObject("Main Camera")
+        camera_object.transform.position = [0.0, 0.0, 3.0]
+        
+        camera_object.add_component(Camera)
+        scene.add_object(camera_object)
+
         self.scene_manager.load_scene(scene)
+
     def run(self):
         self.running = True
         self.logger.info("Engine started.")
