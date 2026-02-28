@@ -2,6 +2,10 @@ import pygame
 from engine.core.time import Time
 from engine.core.logger import setup_logger
 from engine.rendering.renderer import Renderer
+from engine.scene.scene_manager import SceneManager
+from engine.scene.scene import Scene
+from engine.scene.game_object import GameObject
+
 
 class Engine:
     def __init__(self, width=1280, height=720, title="Nexis Engine"):
@@ -26,7 +30,11 @@ class Engine:
         self.logger.info("Engine initialized.")
 
         self.renderer = Renderer()
-
+        self.scene_manager = SceneManager()
+        scene = Scene("Main Scene")
+        triangle_object = GameObject("Triangle")
+        scene.add_object(triangle_object)
+        self.scene_manager.load_scene(scene)
     def run(self):
         self.running = True
         self.logger.info("Engine started.")
@@ -51,6 +59,6 @@ class Engine:
                 self.running = False
 
     def update(self):
-        pass
+        self.scene_manager.update()
     def render(self):
         self.renderer.render()
