@@ -26,3 +26,16 @@ def create_perspective(fov, aspect, near, far):
     mat[3][2] = -1
 
     return mat
+
+def create_orthographic(left, right, bottom, top, near, far):
+    mat = np.identity(4, dtype="f4")
+
+    mat[0][0] = 2.0 / (right - left)
+    mat[1][1] = 2.0 / (top - bottom)
+    mat[2][2] = -2.0 / (far - near)
+
+    mat[0][3] = -(right + left) / (right - left)
+    mat[1][3] = -(top + bottom) / (top - bottom)
+    mat[2][3] = -(far + near) / (far - near)
+
+    return mat
