@@ -1,6 +1,6 @@
 import moderngl
 from engine.components.mesh_renderer import MeshRenderer
-
+from engine.components.camera import Camera
 
 class Renderer:
     def __init__(self):
@@ -12,5 +12,20 @@ class Renderer:
 
         for obj in scene.game_objects:
             for comp in obj.components:
+                if isinstance(comp, Camera):
+                    camera = comp
+
+        if camera is None:
+            return
+        
+        aspect = self.ctx.screen.width / self.ctx.screen.height
+        projection = camera.get_projection_matrix(aspect)
+        view = camera.get_view_matrix()
+
+        for obj in scene.game_objects:
+            model = obj.transform.get_model_matrix()
+
+            for comp in obj.components:
                 if isinstance(comp, MeshRenderer):
-                    comp.render()
+                    mvp = projection @ view @ model
+                    comp.render(mvp)

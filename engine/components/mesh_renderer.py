@@ -8,14 +8,14 @@ class MeshRenderer(Component):
         super().__init__(game_object)
 
         self.ctx = ctx
-
         self.program = self.ctx.program(
             vertex_shader="""
                 #version 330
+                uniform mat4 mvp;
                 in vec3 in_position;
 
                 void main() {
-                    gl_Position = vec4(in_position, 1.0);
+                    gl_Position = mvp * vec4(in_position, 1.0);
                 }
             """,
             fragment_shader="""
@@ -41,5 +41,6 @@ class MeshRenderer(Component):
             "in_position"
         )
 
-    def render(self):
+    def render(self, mvp):
+        self.program["mvp"].write(mvp.astype("f4").tobytes())
         self.vao.render()
