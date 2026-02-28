@@ -14,8 +14,8 @@ class GameObject:
         self.transform = Transform(self)
         self.components.append(self.transform)
 
-    def add_component(self, component_class):
-        component = component_class(self)
+    def add_component(self, component_class, *args, **kwargs):
+        component = component_class(self, *args, **kwargs)
         self.components.append(component)
         return component
 
