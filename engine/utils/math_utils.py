@@ -39,3 +39,41 @@ def create_orthographic(left, right, bottom, top, near, far):
     mat[2][3] = -(far + near) / (far - near)
 
     return mat
+
+def create_rotation_x(angle):
+    rad = np.radians(angle)
+    c = np.cos(rad)
+    s = np.sin(rad)
+
+    mat = np.identity(4, dtype="f4")
+    mat[1][1] = c
+    mat[1][2] = -s
+    mat[2][1] = s
+    mat[2][2] = c
+    return mat
+
+
+def create_rotation_y(angle):
+    rad = np.radians(angle)
+    c = np.cos(rad)
+    s = np.sin(rad)
+
+    mat = np.identity(4, dtype="f4")
+    mat[0][0] = c
+    mat[0][2] = s
+    mat[2][0] = -s
+    mat[2][2] = c
+    return mat
+
+
+def create_rotation_z(angle):
+    rad = np.radians(angle)
+    c = np.cos(rad)
+    s = np.sin(rad)
+
+    mat = np.identity(4, dtype="f4")
+    mat[0][0] = c
+    mat[0][1] = -s
+    mat[1][0] = s
+    mat[1][1] = c
+    return mat
