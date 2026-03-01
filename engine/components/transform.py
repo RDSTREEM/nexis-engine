@@ -1,6 +1,12 @@
 import numpy as np
 from engine.components.component import Component
-from engine.utils.math_utils import create_translation, create_scale
+from engine.utils.math_utils import (
+    create_translation,
+    create_scale,
+    create_rotation_x,
+    create_rotation_y,
+    create_rotation_z
+)
 
 
 class Transform(Component):
@@ -14,4 +20,11 @@ class Transform(Component):
     def get_model_matrix(self):
         translation = create_translation(self.position)
         scale = create_scale(self.scale)
-        return translation @ scale
+        
+        rx = create_rotation_x(self.rotation[0])
+        ry = create_rotation_y(self.rotation[0])
+        rz = create_rotation_z(self.rotation[0])
+        
+        rotation = rx @ ry @ rz
+
+        return translation @ rotation @ scale
