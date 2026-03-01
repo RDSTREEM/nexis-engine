@@ -52,7 +52,7 @@ class Camera(Component):
             )
 
     def get_view_matrix(self):
-        position = self.game_object.transform.position
+        position = np.array(self.game_object.transform.position, dtype="f4")
 
         view = np.identity(4, dtype="f4")
         view[0:3, 3] = -position[0:3]

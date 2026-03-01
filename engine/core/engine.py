@@ -38,11 +38,10 @@ class Engine:
 
         triangle_object = GameObject("Triangle")
         triangle_object.add_component(MeshRenderer, self.renderer.ctx)
+        # triangle_object.transform.rotation = [45.0, 0.0, 0.0]
         scene.add_object(triangle_object)
 
         camera_object = GameObject("Main Camera")
-        camera_object.transform.position = [0.0, 0.0, 3.0]
-        
         camera_object.add_component(Camera)
         scene.add_object(camera_object)
 
@@ -57,7 +56,7 @@ class Engine:
             Time.update(current_time)
 
             self.handle_events()
-            Input.update()
+            # Input.update()
             self.update()
             self.render()
 
@@ -74,6 +73,12 @@ class Engine:
 
     def update(self):
         self.scene_manager.update()
+        
+        # scene = self.scene_manager.current_scene
+        # if scene:
+            # for obj in scene.game_objects:
+                # if obj.name == "Triangle":
+                    # obj.transform.rotation[2] += 60 * Time.delta_time
     def render(self):
         if self.scene_manager.current_scene:
             self.renderer.render(self.scene_manager.current_scene)
