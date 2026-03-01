@@ -7,6 +7,7 @@ from engine.scene.scene import Scene
 from engine.scene.game_object import GameObject
 from engine.components.mesh_renderer import MeshRenderer
 from engine.components.camera import Camera
+from engine.core.input import Input
 
 class Engine:
     def __init__(self, width=1280, height=720, title="Nexis Engine"):
@@ -56,6 +57,7 @@ class Engine:
             Time.update(current_time)
 
             self.handle_events()
+            Input.update()
             self.update()
             self.render()
 
