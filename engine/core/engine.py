@@ -1,7 +1,11 @@
 import pygame
+import numpy as np
 from engine.core.time import Time
 from engine.core.logger import setup_logger
 from engine.rendering.renderer import Renderer
+from engine.rendering.material import Material
+from engine.rendering.mesh import Mesh
+from engine.rendering.shader import Shader
 from engine.scene.scene_manager import SceneManager
 from engine.scene.scene import Scene
 from engine.scene.game_object import GameObject
@@ -36,14 +40,45 @@ class Engine:
 
         scene = Scene("Main Scene")
 
+        vertex_shader = """
+        #version 330
+        uniform mat4 mvp;
+        in vec3 in_position;
+
+        void main() {
+            gl_Position = mvp * vec4(in_position, 1.0);
+        }
+        """
+
+        fragment_shader = """
+        #version 330
+        out vec4 fragColor;
+
+        void main() {
+            fragColor = vec4(0.2, 0.6, 1.0, 1.0);
+        }
+        """
+        
+        shader = Shader(self.renderer.ctx, vertex_shader, fragment_shader)
+        vertices = np.array([
+                -0.6, -0.4, 0.0,
+                0.6, -0.4, 0.0,
+                0.0,  0.6, 0.0,
+        ])
+        
+        mesh = Mesh(self.renderer.ctx, vertices)
+        mesh.build_vao(shader)
+        
+        material = Material(shader)
+        
         triangle_object = GameObject("Triangle")
-        triangle_object.add_component(MeshRenderer, self.renderer.ctx)
-        triangle_object.transform.rotation = [45.0, 0.0, 0.0]
+        triangle_object.add_component(MeshRenderer, mesh, material)
+        
         scene.add_object(triangle_object)
 
         camera_object = GameObject("Main Camera")
         camera_object.add_component(Camera)
-        camera_object.transform.position = [0.0, 0.0, 3.0]
+        # camera_object.transform.position = [0.0, 0.0, 3.0]
         scene.add_object(camera_object)
 
         self.scene_manager.load_scene(scene)

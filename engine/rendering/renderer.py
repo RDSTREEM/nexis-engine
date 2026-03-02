@@ -9,7 +9,7 @@ class Renderer:
 
     def render(self, scene):
         self.ctx.clear(0.1, 0.1, 0.1)
-
+        camera = None
         for obj in scene.game_objects:
             for comp in obj.components:
                 if isinstance(comp, Camera):
