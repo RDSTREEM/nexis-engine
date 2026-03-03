@@ -1,6 +1,7 @@
 import uuid
 import numpy as np
 from engine.components.transform import Transform
+from engine.core.component_registry import ComponentRegistry
 
 
 class GameObject:
@@ -48,10 +49,18 @@ class GameObject:
     def from_dict(data):
         obj = GameObject(data["name"])
 
+        # Restore transform
         transform_data = data["transform"]
-
         obj.transform.position = np.array(transform_data["position"], dtype=float)
         obj.transform.rotation = np.array(transform_data["rotation"], dtype=float)
         obj.transform.scale = np.array(transform_data["scale"], dtype=float)
+
+        # Restore components
+        for comp_data in data.get("components", []):
+            comp_type = comp_data["type"]
+            comp_class = ComponentRegistry.get(comp_type)
+
+            if comp_class:
+                obj.add_component(comp_class)
 
         return obj

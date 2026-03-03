@@ -72,12 +72,12 @@ class Engine:
         
         scene.load("./assets/scenes/test.scene")
 
-        for obj in scene.game_objects:
-            if obj.name == "Triangle":
-                obj.add_component(MeshRenderer, mesh, material)
+        # for obj in scene.game_objects:
+        #     if obj.name == "Triangle":
+        #         obj.add_component(MeshRenderer, mesh, material)
 
-            if obj.name == "Main Camera":
-                obj.add_component(Camera)
+        #     if obj.name == "Main Camera":
+        #         obj.add_component(Camera)
 
         self.scene_manager.load_scene(scene)
 

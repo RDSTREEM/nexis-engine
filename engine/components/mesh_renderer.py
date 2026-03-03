@@ -3,7 +3,7 @@ from engine.components.component import Component
 from engine.core.component_registry import ComponentRegistry
 
 class MeshRenderer(Component):
-    def __init__(self, game_object, mesh, material):
+    def __init__(self, game_object, mesh=None, material=None):
         super().__init__(game_object)
 
         self.mesh = mesh
