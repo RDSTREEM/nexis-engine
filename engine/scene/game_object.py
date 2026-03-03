@@ -32,3 +32,15 @@ class GameObject:
         for component in self.components:
             if component.enabled:
                 component.update()
+
+    def to_dict(self):
+        return {
+            "name": self.name,
+            "transform": self.transform.to_dict()
+        }
+
+    @staticmethod
+    def from_dict(data):
+        obj = GameObject(data["name"])
+        obj.transform = Transform.from_dict(data["transform"])
+        return obj
