@@ -80,6 +80,8 @@ class Engine:
         camera_object.add_component(Camera)
         # camera_object.transform.position = [0.0, 0.0, 3.0]
         scene.add_object(camera_object)
+        
+        scene.save("./assets/scenes/test.scene")
 
         self.scene_manager.load_scene(scene)
 
