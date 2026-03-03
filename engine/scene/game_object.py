@@ -37,7 +37,11 @@ class GameObject:
     def to_dict(self):
         return {
             "name": self.name,
-            "transform": self.transform.to_dict()
+            "transform": self.transform.to_dict(),
+            "components": [
+                {"type": type(comp).__name__}
+                for comp in self.components
+            ]
         }
 
     @staticmethod
