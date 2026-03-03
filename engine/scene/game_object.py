@@ -1,4 +1,5 @@
 import uuid
+import numpy as np
 from engine.components.transform import Transform
 
 
@@ -42,5 +43,11 @@ class GameObject:
     @staticmethod
     def from_dict(data):
         obj = GameObject(data["name"])
-        obj.transform = Transform.from_dict(data["transform"])
+
+        transform_data = data["transform"]
+
+        obj.transform.position = np.array(transform_data["position"], dtype=float)
+        obj.transform.rotation = np.array(transform_data["rotation"], dtype=float)
+        obj.transform.scale = np.array(transform_data["scale"], dtype=float)
+
         return obj

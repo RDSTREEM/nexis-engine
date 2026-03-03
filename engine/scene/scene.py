@@ -1,4 +1,5 @@
 import json
+import os
 from engine.scene.game_object import GameObject
 
 class Scene:
@@ -13,13 +14,16 @@ class Scene:
         for obj in self.game_objects:
             obj.update()
     def save(self, path):
+        directory = os.path.dirname(path)
+
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory)
+
         data = {
             "game_objects": [obj.to_dict() for obj in self.game_objects]
         }
-
         with open(path, "w") as f:
-            json.dump(data, f, indent=4)
-
+            json.dump(data, f, indent=4)    
 
     def load(self, path):
         with open(path, "r") as f:
@@ -29,4 +33,4 @@ class Scene:
 
         for obj_data in data["game_objects"]:
             obj = GameObject.from_dict(obj_data)
-            self.add_game_object(obj)
+            self.add_object(obj)

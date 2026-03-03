@@ -68,20 +68,16 @@ class Engine:
         
         mesh = Mesh(self.renderer.ctx, vertices)
         mesh.build_vao(shader)
-        
         material = Material(shader)
         
-        triangle_object = GameObject("Triangle")
-        triangle_object.add_component(MeshRenderer, mesh, material)
-        
-        scene.add_object(triangle_object)
+        scene.load("./assets/scenes/test.scene")
 
-        camera_object = GameObject("Main Camera")
-        camera_object.add_component(Camera)
-        # camera_object.transform.position = [0.0, 0.0, 3.0]
-        scene.add_object(camera_object)
-        
-        scene.save("./assets/scenes/test.scene")
+        for obj in scene.game_objects:
+            if obj.name == "Triangle":
+                obj.add_component(MeshRenderer, mesh, material)
+
+            if obj.name == "Main Camera":
+                obj.add_component(Camera)
 
         self.scene_manager.load_scene(scene)
 
