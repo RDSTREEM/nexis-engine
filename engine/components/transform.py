@@ -28,3 +28,19 @@ class Transform(Component):
         rotation = rx @ ry @ rz
 
         return translation @ rotation @ scale
+
+    def to_dict(self):
+        return {
+            "position": self.position.tolist(),
+            "rotation": self.rotation.tolist(),
+            "scale": self.scale.tolist()
+        }
+    
+    @staticmethod
+    def from_dict(data):
+        t = Transform()
+        t.position = np.array(data["position"], dtype="f4")
+        t.rotation= np.array(data["rotation"], dtype="f4")
+        t.scale = np.array(data["scale"], dtype="f4")
+        
+        return t
