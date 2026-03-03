@@ -1,5 +1,6 @@
 import numpy as np
 from engine.components.component import Component
+from engine.core.component_registry import ComponentRegistry
 from engine.utils.math_utils import (
     create_perspective,
     create_orthographic
@@ -58,3 +59,5 @@ class Camera(Component):
         view[0:3, 3] = -position[0:3]
 
         return view
+    
+ComponentRegistry.register("Camera", Camera)
