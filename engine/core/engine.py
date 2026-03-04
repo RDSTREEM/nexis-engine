@@ -2,6 +2,7 @@ import pygame
 import numpy as np
 from engine.core.time import Time
 from engine.core.logger import setup_logger
+from engine.core.asset_manager import AssetManager
 from engine.rendering.renderer import Renderer
 from engine.rendering.material import Material
 from engine.rendering.mesh import Mesh
@@ -69,7 +70,9 @@ class Engine:
         mesh = Mesh(self.renderer.ctx, vertices)
         mesh.build_vao(shader)
         material = Material(shader)
-        
+        AssetManager.register_mesh("triangle", mesh)
+        AssetManager.register_material("default_blue", material)
+
         scene.load("./assets/scenes/test.scene")
 
         # for obj in scene.game_objects:
