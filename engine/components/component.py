@@ -11,3 +11,8 @@ class Component:
 
     def on_destroy(self):
         pass
+
+    def to_dict(self):
+        return {
+            "type": type(self).__name__
+        }

@@ -59,5 +59,10 @@ class Camera(Component):
         view[0:3, 3] = -position[0:3]
 
         return view
+
+    def to_dict(self):
+        return {
+            "type": "Camera"
+        }
     
 ComponentRegistry.register("Camera", Camera)

@@ -15,4 +15,11 @@ class MeshRenderer(Component):
             self.material.shader.set_uniform_matrix("mvp", mvp)
             self.mesh.render()
 
+        def to_dict(self):
+            return {
+                "type": "MeshRenderer",
+                "mesh": self.mesh_name,
+                "material": self.material_name
+            }
+
 ComponentRegistry.register("MeshRenderer", MeshRenderer)

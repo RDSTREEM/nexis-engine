@@ -40,10 +40,10 @@ class GameObject:
             "name": self.name,
             "transform": self.transform.to_dict(),
             "components": [
-                {"type": type(comp).__name__}
+                comp.to_dict()
                 for comp in self.components
             ]
-        }
+}
 
     @staticmethod
     def from_dict(data):
@@ -61,6 +61,18 @@ class GameObject:
             comp_class = ComponentRegistry.get(comp_type)
 
             if comp_class:
-                obj.add_component(comp_class)
+                if comp_type == "MeshRenderer":
+                    from engine.core.asset_manager import AssetManager
 
-        return obj
+                    mesh = AssetManager.get_mesh(comp_data["mesh"])
+                    material = AssetManager.get_material(comp_data["material"])
+
+                    obj.add_component(
+                        comp_class,
+                        mesh,
+                        material,
+                        mesh_name=comp_data["mesh"],
+                        material_name=comp_data["material"]
+                    )
+                else:
+                    obj.add_component(comp_class)

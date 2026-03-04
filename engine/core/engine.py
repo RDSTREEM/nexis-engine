@@ -73,8 +73,23 @@ class Engine:
         AssetManager.register_mesh("triangle", mesh)
         AssetManager.register_material("default_blue", material)
 
+        
         scene.load("./assets/scenes/test.scene")
+        # triangle_object = GameObject("Triangle")
+        # triangle_object.add_component(
+        #     MeshRenderer,
+        #     mesh,
+        #     material,
+        #     mesh_name="triangle",
+        #     material_name="default_blue"
+        # )
+        # scene.add_object(triangle_object)
 
+        # camera_object = GameObject("Main Camera")
+        # camera_object.add_component(Camera)
+        # scene.add_object(camera_object)
+
+        # scene.save("./assets/scenes/test.scene")
         # for obj in scene.game_objects:
         #     if obj.name == "Triangle":
         #         obj.add_component(MeshRenderer, mesh, material)
