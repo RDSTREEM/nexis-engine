@@ -14,7 +14,6 @@ class GameObject:
 
         # Every object automatically gets Transform
         self.transform = Transform(self)
-        self.components.append(self.transform)
 
     def add_component(self, component_class, *args, **kwargs):
         component = component_class(self, *args, **kwargs)
@@ -51,9 +50,9 @@ class GameObject:
 
         # Restore transform
         transform_data = data["transform"]
-        obj.transform.position = np.array(transform_data["position"], dtype=float)
-        obj.transform.rotation = np.array(transform_data["rotation"], dtype=float)
-        obj.transform.scale = np.array(transform_data["scale"], dtype=float)
+        obj.transform.position = np.array(transform_data["position"], dtype="f4")
+        obj.transform.rotation = np.array(transform_data["rotation"], dtype="f4")
+        obj.transform.scale = np.array(transform_data["scale"], dtype="f4")
 
         # Restore components
         for comp_data in data.get("components", []):

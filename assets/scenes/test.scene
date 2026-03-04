@@ -21,26 +21,14 @@
             },
             "components": [
                 {
-                    "position": [
-                        0.0,
-                        0.0,
-                        0.0
-                    ],
-                    "rotation": [
-                        0.0,
-                        0.0,
-                        0.0
-                    ],
-                    "scale": [
-                        1.0,
-                        1.0,
-                        1.0
-                    ]
-                },
-                {
                     "type": "MeshRenderer",
                     "mesh": "triangle",
                     "material": "default_blue"
+                },
+                {
+                    "type": "MeshRenderer",
+                    "mesh": null,
+                    "material": null
                 }
             ]
         },
@@ -65,21 +53,7 @@
             },
             "components": [
                 {
-                    "position": [
-                        0.0,
-                        0.0,
-                        0.0
-                    ],
-                    "rotation": [
-                        0.0,
-                        0.0,
-                        0.0
-                    ],
-                    "scale": [
-                        1.0,
-                        1.0,
-                        1.0
-                    ]
+                    "type": "Camera"
                 },
                 {
                     "type": "Camera"
