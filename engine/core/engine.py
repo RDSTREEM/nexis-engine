@@ -144,9 +144,10 @@ def generate_scene(scene, mesh, material):
     scene.add_object(camera_object)
 
     scene.save("./assets/scenes/test.scene")
-    for obj in scene.game_objects:
+
+    """ for obj in scene.game_objects:
         if obj.name == "Triangle":
             obj.add_component(MeshRenderer, mesh, material)
         if obj.name == "Main Camera":
             obj.add_component(Camera)
-
+ """

@@ -75,3 +75,5 @@ class GameObject:
                     )
                 else:
                     obj.add_component(comp_class)
+        
+        return obj

@@ -24,11 +24,6 @@
                     "type": "MeshRenderer",
                     "mesh": "triangle",
                     "material": "default_blue"
-                },
-                {
-                    "type": "MeshRenderer",
-                    "mesh": null,
-                    "material": null
                 }
             ]
         },
@@ -52,9 +47,6 @@
                 ]
             },
             "components": [
-                {
-                    "type": "Camera"
-                },
                 {
                     "type": "Camera"
                 }
