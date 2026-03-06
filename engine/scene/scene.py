@@ -19,12 +19,15 @@ class Scene:
     def remove_object(self, obj):
         if obj in self.game_objects:
             self.game_objects.remove(obj)
-    
+
     def find(self, name):
         for obj in self.game_objects:
             if obj.name == name:
                 return obj
         return None
+
+    def clear(self):
+        self.game_objects.clear()
 
     def update(self):
         for obj in self.game_objects:
@@ -49,3 +52,5 @@ class Scene:
         for obj_data in data["game_objects"]:
             obj = GameObject.from_dict(obj_data)
             self.add_object(obj)
+
+        self.name = os.path.basename(path)
