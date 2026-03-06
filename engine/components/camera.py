@@ -62,7 +62,15 @@ class Camera(Component):
 
     def to_dict(self):
         return {
-            "type": "Camera"
+            "type": "Camera",
+            "mode": self.mode,
+            "fov": self.fov,
+            "near": self.near,
+            "far": self.far,
+            "left": self.left,
+            "right": self.right,
+            "bottom": self.bottom,
+            "top": self.top
         }
-    
+
 ComponentRegistry.register("Camera", Camera)

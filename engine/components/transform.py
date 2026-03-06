@@ -37,8 +37,8 @@ class Transform(Component):
         }
     
     @staticmethod
-    def from_dict(data):
-        t = Transform()
+    def from_dict(game_object, data):
+        t = Transform(game_object)
         t.position = np.array(data["position"], dtype="f4")
         t.rotation= np.array(data["rotation"], dtype="f4")
         t.scale = np.array(data["scale"], dtype="f4")
