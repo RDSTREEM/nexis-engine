@@ -1,10 +1,7 @@
 import numpy as np
 from engine.components.component import Component
 from engine.core.component_registry import ComponentRegistry
-from engine.utils.math_utils import (
-    create_perspective,
-    create_orthographic
-)
+from engine.utils.math_utils import create_perspective, create_orthographic
 
 
 class Camera(Component):
@@ -18,7 +15,7 @@ class Camera(Component):
         left=0,
         right=800,
         bottom=0,
-        top=600
+        top=600,
     ):
         super().__init__(game_object)
 
@@ -35,21 +32,11 @@ class Camera(Component):
 
     def get_projection_matrix(self, aspect_ratio):
         if self.mode == "perspective":
-            return create_perspective(
-                self.fov,
-                aspect_ratio,
-                self.near,
-                self.far
-            )
+            return create_perspective(self.fov, aspect_ratio, self.near, self.far)
 
         elif self.mode == "orthographic":
             return create_orthographic(
-                self.left,
-                self.right,
-                self.bottom,
-                self.top,
-                self.near,
-                self.far
+                self.left, self.right, self.bottom, self.top, self.near, self.far
             )
 
     def get_view_matrix(self):
@@ -70,7 +57,8 @@ class Camera(Component):
             "left": self.left,
             "right": self.right,
             "bottom": self.bottom,
-            "top": self.top
+            "top": self.top,
         }
+
 
 ComponentRegistry.register("Camera", Camera)

@@ -14,6 +14,7 @@ from engine.components.mesh_renderer import MeshRenderer
 from engine.components.camera import Camera
 from engine.core.input import Input
 
+
 class Engine:
     def __init__(self, width=1280, height=720, title="Nexis Engine"):
         self.width = width
@@ -28,8 +29,7 @@ class Engine:
         pygame.display.set_caption(self.title)
 
         self.window = pygame.display.set_mode(
-            (self.width, self.height),
-            pygame.OPENGL | pygame.DOUBLEBUF
+            (self.width, self.height), pygame.OPENGL | pygame.DOUBLEBUF
         )
 
         self.clock = pygame.time.Clock()
@@ -59,14 +59,22 @@ class Engine:
             fragColor = vec4(0.2, 0.6, 1.0, 1.0);
         }
         """
-        
+
         shader = Shader(self.renderer.ctx, vertex_shader, fragment_shader)
-        vertices = np.array([
-                -0.6, -0.4, 0.0,
-                0.6, -0.4, 0.0,
-                0.0,  0.6, 0.0,
-        ])
-        
+        vertices = np.array(
+            [
+                -0.6,
+                -0.4,
+                0.0,
+                0.6,
+                -0.4,
+                0.0,
+                0.0,
+                0.6,
+                0.0,
+            ]
+        )
+
         mesh = Mesh(self.renderer.ctx, vertices)
         mesh.build_vao(shader)
         material = Material(shader)
@@ -104,7 +112,7 @@ class Engine:
 
     def update(self):
         self.scene_manager.update()
-        
+
         scene = self.scene_manager.current_scene
         if scene:
             for obj in scene.game_objects:
@@ -131,12 +139,8 @@ class Engine:
 def generate_scene(scene, mesh, material):
     triangle_object = GameObject("Triangle")
     triangle_object.add_component(
-            MeshRenderer,
-            mesh,
-            material,
-            mesh_name="triangle",
-            material_name="default_blue"
-        )
+        MeshRenderer, mesh, material, mesh_name="triangle", material_name="default_blue"
+    )
     scene.add_object(triangle_object)
 
     camera_object = GameObject("Main Camera")

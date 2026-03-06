@@ -48,7 +48,15 @@
             },
             "components": [
                 {
-                    "type": "Camera"
+                    "type": "Camera",
+                    "mode": "perspective",
+                    "fov": 60,
+                    "near": 0.1,
+                    "far": 100.0,
+                    "left": 0,
+                    "right": 800,
+                    "bottom": 0,
+                    "top": 600
                 }
             ]
         }

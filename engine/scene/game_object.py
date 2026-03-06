@@ -25,6 +25,7 @@ class GameObject:
             if isinstance(comp, component_class):
                 return comp
         return None
+
     def remove_component(self, component_class):
         for comp in self.components:
             if isinstance(comp, component_class):
@@ -46,11 +47,8 @@ class GameObject:
         return {
             "name": self.name,
             "transform": self.transform.to_dict(),
-            "components": [
-                comp.to_dict()
-                for comp in self.components
-            ]
-}
+            "components": [comp.to_dict() for comp in self.components],
+        }
 
     @staticmethod
     def from_dict(data):
@@ -79,9 +77,9 @@ class GameObject:
                         mesh,
                         material,
                         mesh_name=comp_data["mesh"],
-                        material_name=comp_data["material"]
+                        material_name=comp_data["material"],
                     )
                 else:
                     obj.add_component(comp_class)
-        
+
         return obj

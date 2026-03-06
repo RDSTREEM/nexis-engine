@@ -27,6 +27,7 @@ def create_perspective(fov, aspect, near, far):
 
     return mat
 
+
 def create_orthographic(left, right, bottom, top, near, far):
     mat = np.identity(4, dtype="f4")
 
@@ -39,6 +40,7 @@ def create_orthographic(left, right, bottom, top, near, far):
     mat[2][3] = -(far + near) / (far - near)
 
     return mat
+
 
 def create_rotation_x(angle):
     rad = np.radians(angle)

@@ -2,6 +2,7 @@ import json
 import os
 from engine.scene.game_object import GameObject
 
+
 class Scene:
     def __init__(self, name="New Scene"):
         self.name = name
@@ -10,20 +11,34 @@ class Scene:
     def add_object(self, game_object):
         self.game_objects.append(game_object)
 
+    def create_object(self, name="GameObject"):
+        obj = GameObject(name)
+        self.game_objects.append(obj)
+        return obj
+
+    def remove_object(self, obj):
+        if obj in self.game_objects:
+            self.game_objects.remove(obj)
+    
+    def find(self, name):
+        for obj in self.game_objects:
+            if obj.name == name:
+                return obj
+        return None
+
     def update(self):
         for obj in self.game_objects:
             obj.update()
+
     def save(self, path):
         directory = os.path.dirname(path)
 
         if directory and not os.path.exists(directory):
             os.makedirs(directory)
 
-        data = {
-            "game_objects": [obj.to_dict() for obj in self.game_objects]
-        }
+        data = {"game_objects": [obj.to_dict() for obj in self.game_objects]}
         with open(path, "w") as f:
-            json.dump(data, f, indent=4)    
+            json.dump(data, f, indent=4)
 
     def load(self, path):
         with open(path, "r") as f:

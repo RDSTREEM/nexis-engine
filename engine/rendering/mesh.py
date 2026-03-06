@@ -8,11 +8,7 @@ class Mesh:
         self.vao = None
 
     def build_vao(self, shader):
-        self.vao = self.ctx.simple_vertex_array(
-            shader.program,
-            self.vbo,
-            "in_position"
-        )
+        self.vao = self.ctx.simple_vertex_array(shader.program, self.vbo, "in_position")
 
     def render(self):
         if self.vao:

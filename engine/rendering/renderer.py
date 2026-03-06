@@ -2,6 +2,7 @@ import moderngl
 from engine.components.mesh_renderer import MeshRenderer
 from engine.components.camera import Camera
 
+
 class Renderer:
     def __init__(self):
         self.ctx = moderngl.create_context()
@@ -17,7 +18,7 @@ class Renderer:
 
         if camera is None:
             return
-        
+
         aspect = self.ctx.screen.width / self.ctx.screen.height
         projection = camera.get_projection_matrix(aspect)
         view = camera.get_view_matrix()

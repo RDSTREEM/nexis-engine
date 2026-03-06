@@ -1,5 +1,6 @@
 from engine.core.engine import Engine
 
+
 def main():
     engine = Engine()
     engine.initialize()

@@ -1,9 +1,10 @@
 import pygame
 
+
 class Input:
     _keys = None
-    _mouse_pos = (0,0)
-    
+    _mouse_pos = (0, 0)
+
     @classmethod
     def update(cls):
         cls._keys = pygame.key.get_pressed()
