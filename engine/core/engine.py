@@ -91,8 +91,9 @@ class Engine:
         self.logger.info("Engine started.")
 
         while self.running:
-            current_time = pygame.time.get_ticks() / 1000.0
-            Time.update(current_time)
+            # current_time = pygame.time.get_ticks() / 1000.0
+            # Time.update(current_time)
+            Time.update()
 
             self.handle_events()
             Input.update()
