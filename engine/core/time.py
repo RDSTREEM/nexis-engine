@@ -10,7 +10,7 @@ class Time:
 
     @classmethod
     def update(cls):
-        now = time.time()
+        now = time.perf_counter()
 
         if cls.last_time == 0:
             cls.last_time = now
