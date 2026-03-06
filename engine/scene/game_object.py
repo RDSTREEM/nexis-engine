@@ -25,6 +25,14 @@ class GameObject:
             if isinstance(comp, component_class):
                 return comp
         return None
+    def remove_component(self, component_class):
+        for comp in self.components:
+            if isinstance(comp, component_class):
+                self.components.remove(comp)
+                return
+
+    def has_component(self, component_class):
+        return self.get_component(component_class) is not None
 
     def update(self):
         if not self.active:
