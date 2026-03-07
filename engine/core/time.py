@@ -15,7 +15,7 @@ class Time:
         if cls.last_time == 0:
             cls.last_time = now
 
-        cls.delta_time = now - cls.last_time
+        cls.delta_time = min(now - cls.last_time, 0.1)
         cls.last_time = now
 
         cls.time += cls.delta_time
