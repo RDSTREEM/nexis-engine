@@ -15,7 +15,7 @@ class MeshRenderer(Component):
         self.material_name = material_name
 
     def render(self, mvp):
-        self.material.shader.set_uniform_matrix("mvp", mvp)
+        self.material.shader.program["mvp"].write(mvp.astype("f4").T.tobytes())
         self.mesh.render()
 
     def to_dict(self):

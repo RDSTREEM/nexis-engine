@@ -13,6 +13,7 @@ from engine.scene.game_object import GameObject
 from engine.components.mesh_renderer import MeshRenderer
 from engine.components.camera import Camera
 from engine.core.input import Input
+from engine.rendering.primitives import create_cube, create_plane
 
 
 class Engine:
@@ -77,13 +78,39 @@ class Engine:
 
         mesh = Mesh(self.renderer.ctx, vertices)
         mesh.build_vao(shader)
+
+        cube_mesh = create_cube(self.renderer.ctx)
+        cube_mesh.build_vao(shader)
+
+        plane_mesh = create_plane(self.renderer.ctx)
+        plane_mesh.build_vao(shader)
         material = Material(shader)
+
+        AssetManager.register_mesh("cube", cube_mesh)
+        AssetManager.register_mesh("plane", plane_mesh)
         AssetManager.register_mesh("triangle", mesh)
         AssetManager.register_material("default_blue", material)
 
-        # generate_scene(scene, mesh, material)
+        for i in range(5):
+            cube = GameObject(f"Cube_{i}")
 
-        scene.load("./assets/scenes/test.scene")
+            cube.transform.position[0] = i * 2
+
+            cube.add_component(
+                MeshRenderer,
+                AssetManager.get_mesh("cube"),
+                AssetManager.get_material("default_blue"),
+                mesh_name="cube",
+                material_name="default_blue",
+            )
+
+            scene.add_object(cube)
+
+        camera = GameObject("Main Camera")
+        camera.add_component(Camera)
+
+        scene.add_object(camera)
+        # scene.load("./assets/scenes/test.scene")
         self.scene_manager.load_scene(scene)
 
     def run(self):
@@ -91,8 +118,7 @@ class Engine:
         self.logger.info("Engine started.")
 
         while self.running:
-            # current_time = pygame.time.get_ticks() / 1000.0
-            # Time.update(current_time)
+
             Time.update()
 
             self.handle_events()
@@ -135,24 +161,3 @@ class Engine:
     def render(self):
         if self.scene_manager.current_scene:
             self.renderer.render(self.scene_manager.current_scene)
-
-
-def generate_scene(scene, mesh, material):
-    triangle_object = GameObject("Triangle")
-    triangle_object.add_component(
-        MeshRenderer, mesh, material, mesh_name="triangle", material_name="default_blue"
-    )
-    scene.add_object(triangle_object)
-
-    camera_object = GameObject("Main Camera")
-    camera_object.add_component(Camera)
-    scene.add_object(camera_object)
-
-    scene.save("./assets/scenes/test.scene")
-
-    """ for obj in scene.game_objects:
-        if obj.name == "Triangle":
-            obj.add_component(MeshRenderer, mesh, material)
-        if obj.name == "Main Camera":
-            obj.add_component(Camera)
- """
