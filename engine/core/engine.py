@@ -13,7 +13,7 @@ from engine.scene.game_object import GameObject
 from engine.components.mesh_renderer import MeshRenderer
 from engine.components.camera import Camera
 from engine.core.input import Input
-from engine.rendering.primitives import create_cube, create_plane
+from engine.rendering.primitives import create_cube, create_plane, create_quad
 
 
 class Engine:
@@ -64,15 +64,9 @@ class Engine:
         shader = Shader(self.renderer.ctx, vertex_shader, fragment_shader)
         vertices = np.array(
             [
-                -0.6,
-                -0.4,
-                0.0,
-                0.6,
-                -0.4,
-                0.0,
-                0.0,
-                0.6,
-                0.0,
+                [-0.6, -0.4, 0.0],
+                [0.6, -0.4, 0.0],
+                [0.0, 0.6, 0.0],
             ]
         )
 
@@ -84,33 +78,19 @@ class Engine:
 
         plane_mesh = create_plane(self.renderer.ctx)
         plane_mesh.build_vao(shader)
+
+        quad_mesh = create_quad(self.renderer.ctx)
+        quad_mesh.build_vao(shader)
+
         material = Material(shader)
 
         AssetManager.register_mesh("cube", cube_mesh)
         AssetManager.register_mesh("plane", plane_mesh)
+        AssetManager.register_mesh("quad", quad_mesh)
         AssetManager.register_mesh("triangle", mesh)
         AssetManager.register_material("default_blue", material)
 
-        for i in range(5):
-            cube = GameObject(f"Cube_{i}")
-
-            cube.transform.position[0] = i * 2
-
-            cube.add_component(
-                MeshRenderer,
-                AssetManager.get_mesh("cube"),
-                AssetManager.get_material("default_blue"),
-                mesh_name="cube",
-                material_name="default_blue",
-            )
-
-            scene.add_object(cube)
-
-        camera = GameObject("Main Camera")
-        camera.add_component(Camera)
-
-        scene.add_object(camera)
-        # scene.load("./assets/scenes/test.scene")
+        scene.load("./assets/scenes/cubes.scene")
         self.scene_manager.load_scene(scene)
 
     def run(self):
