@@ -1,6 +1,8 @@
 import moderngl
 from engine.components.mesh_renderer import MeshRenderer
 from engine.components.camera import Camera
+from engine.rendering.debug_rendering import DebugRenderer
+from engine.rendering.debug_shapes import draw_grid, draw_axis
 
 
 class Renderer:
