@@ -42,26 +42,11 @@ class Engine:
 
         scene = Scene("Main Scene")
 
-        vertex_shader = """
-        #version 330
-        uniform mat4 mvp;
-        in vec3 in_position;
-
-        void main() {
-            gl_Position = mvp * vec4(in_position, 1.0);
-        }
-        """
-
-        fragment_shader = """
-        #version 330
-        out vec4 fragColor;
-
-        void main() {
-            fragColor = vec4(0.2, 0.6, 1.0, 1.0);
-        }
-        """
-
-        shader = Shader(self.renderer.ctx, vertex_shader, fragment_shader)
+        shader = Shader(
+            self.renderer.ctx,
+            "./engine/shaders/basic.vert",
+            "./engine/shaders/basic.frag",
+        )
         vertices = np.array(
             [
                 [-0.6, -0.4, 0.0],
