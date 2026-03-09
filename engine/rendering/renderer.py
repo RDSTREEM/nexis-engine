@@ -1,5 +1,6 @@
 import moderngl
 from engine.components.mesh_renderer import MeshRenderer
+from engine.rendering.shader import Shader
 from engine.components.camera import Camera
 from engine.rendering.debug_rendering import DebugRenderer
 from engine.rendering.debug_shapes import draw_grid, draw_axis
@@ -10,6 +11,14 @@ class Renderer:
     def __init__(self):
         self.ctx = moderngl.create_context()
         self.ctx.enable(moderngl.DEPTH_TEST)
+
+        self.shader = Shader(
+            self.ctx,
+            "./engine/shaders/basic.vert",
+            "./engine/shaders/basic.frag",
+        )
+
+        self.debug_renderer = DebugRenderer(self.ctx)
 
     def render(self, scene):
         self.ctx.clear(0.1, 0.1, 0.1)
