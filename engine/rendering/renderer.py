@@ -3,6 +3,7 @@ from engine.components.mesh_renderer import MeshRenderer
 from engine.components.camera import Camera
 from engine.rendering.debug_rendering import DebugRenderer
 from engine.rendering.debug_shapes import draw_grid, draw_axis
+from engine.rendering.debug_shapes import draw_grid, draw_axis
 
 
 class Renderer:
@@ -12,6 +13,10 @@ class Renderer:
 
     def render(self, scene):
         self.ctx.clear(0.1, 0.1, 0.1)
+        self.render_scene(scene)
+        self.render_debug()
+
+    def render_scene(self, scene):
         camera = None
         for obj in scene.game_objects:
             for comp in obj.components:
@@ -32,3 +37,11 @@ class Renderer:
                 if isinstance(comp, MeshRenderer):
                     mvp = projection @ view @ model
                     comp.render(mvp)
+
+    def render_debug(self):
+        self.debug_renderer.clear()
+
+        draw_grid(self.debug_renderer)
+        draw_axis(self.debug_renderer)
+
+        self.debug_renderer.render(self.shader)
