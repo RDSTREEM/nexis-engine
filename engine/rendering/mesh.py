@@ -15,15 +15,25 @@ class Mesh:
         self.vertex_count = len(vertices) // 3
         self.index_count = len(indices) if indices is not None else None
 
-    def build_vao(self, shader):
+    def build_vao(self, program):
         if self.ibo:
-            self.vao = self.ctx.vertex_array(
-                shader.program, [(self.vbo, "3f", "in_position")], self.ibo
+            return self.ctx.vertex_array(
+                program,
+                [
+                    (
+                        self.vbo,
+                        "3f",
+                        "in_position",
+                    )
+                ],
+                self.ibo,
             )
-        else:
-            self.vao = self.ctx.simple_vertex_array(
-                shader.program, self.vbo, "in_position"
-            )
+
+        return self.ctx.simple_vertex_array(
+            program,
+            self.vbo,
+            "in_position",
+        )
 
     def render(self):
         if not self.vao:
