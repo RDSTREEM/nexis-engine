@@ -11,4 +11,4 @@ class Shader:
         )
 
     def set_uniform_matrix(self, name, matrix):
-        self.program[name].write(matrix.astype("f4").tobytes())
+        self.program[name].write(matrix.T.astype("f4").tobytes())
