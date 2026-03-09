@@ -1,6 +1,3 @@
-import moderngl
-
-
 class Shader:
     def __init__(self, ctx, vert_path, frag_path):
         with open(vert_path) as f:

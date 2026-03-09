@@ -56,16 +56,9 @@ class Engine:
         )
 
         mesh = Mesh(self.renderer.ctx, vertices)
-        mesh.build_vao(shader)
-
         cube_mesh = create_cube(self.renderer.ctx)
-        cube_mesh.build_vao(shader)
-
         plane_mesh = create_plane(self.renderer.ctx)
-        plane_mesh.build_vao(shader)
-
         quad_mesh = create_quad(self.renderer.ctx)
-        quad_mesh.build_vao(shader)
 
         material = Material(shader)
 

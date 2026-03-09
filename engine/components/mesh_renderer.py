@@ -5,7 +5,12 @@ from engine.core.component_registry import ComponentRegistry
 
 class MeshRenderer(Component):
     def __init__(
-        self, game_object, mesh=None, material=None, mesh_name=None, material_name=None
+        self,
+        game_object,
+        mesh=None,
+        material=None,
+        mesh_name=None,
+        material_name=None,
     ):
         super().__init__(game_object)
 
@@ -14,9 +19,18 @@ class MeshRenderer(Component):
         self.mesh_name = mesh_name
         self.material_name = material_name
 
+        self.vao = None
+
+        if self.mesh and self.material:
+            self.vao = self.mesh.build_vao(self.material.shader.program)
+
     def render(self, mvp):
-        self.material.shader.program["mvp"].write(mvp.astype("f4").T.tobytes())
-        self.mesh.render()
+        if not self.vao:
+            return
+
+        self.material.shader.set_uniform_matrix("mvp", mvp)
+
+        self.vao.render()
 
     def to_dict(self):
         return {

@@ -1,6 +1,3 @@
-import numpy as np
-
-
 class Mesh:
     def __init__(self, ctx, vertices, indices=None):
         self.ctx = ctx
@@ -10,10 +7,6 @@ class Mesh:
         self.ibo = None
         if indices is not None:
             self.ibo = ctx.buffer(indices.astype("i4").tobytes())
-
-        self.vao = None
-        self.vertex_count = len(vertices) // 3
-        self.index_count = len(indices) if indices is not None else None
 
     def build_vao(self, program):
         if self.ibo:
