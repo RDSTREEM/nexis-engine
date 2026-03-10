@@ -99,16 +99,23 @@ class Engine:
         scene = self.scene_manager.current_scene
         if scene:
             camera = scene.get_active_camera()
+            transform = camera.game_object.transform
             if camera:
                 speed = 3.0 * Time.delta_time
                 if Input.get_key(pygame.K_w):
-                    camera.game_object.transform.position[2] -= speed
+                    transform.position[2] -= speed
                 if Input.get_key(pygame.K_s):
-                    camera.game_object.transform.position[2] += speed
+                    transform.position[2] += speed
                 if Input.get_key(pygame.K_a):
-                    camera.game_object.transform.position[0] -= speed
+                    transform.position[0] -= speed
                 if Input.get_key(pygame.K_d):
-                    camera.game_object.transform.position[0] += speed
+                    transform.position[0] += speed
+                rot_speed = 0.2
+
+                mx, my = Input.get_mouse_delta()
+                if Input.get_mouse_button(2):
+                    transform.rotation[1] -= mx * rot_speed
+                    transform.rotation[0] -= my * rot_speed
 
         self.scene_manager.update()
 
