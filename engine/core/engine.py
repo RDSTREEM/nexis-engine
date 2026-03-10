@@ -9,11 +9,9 @@ from engine.rendering.mesh import Mesh
 from engine.rendering.shader import Shader
 from engine.scene.scene_manager import SceneManager
 from engine.scene.scene import Scene
-from engine.scene.game_object import GameObject
-from engine.components.mesh_renderer import MeshRenderer
-from engine.components.camera import Camera
 from engine.core.input import Input
 from engine.rendering.primitives import create_cube, create_plane, create_quad
+from engine.utils.math_utils import forward_vector
 
 
 class Engine:
@@ -99,23 +97,31 @@ class Engine:
         scene = self.scene_manager.current_scene
         if scene:
             camera = scene.get_active_camera()
-            transform = camera.game_object.transform
             if camera:
                 speed = 3.0 * Time.delta_time
-                if Input.get_key(pygame.K_w):
-                    transform.position[2] -= speed
-                if Input.get_key(pygame.K_s):
-                    transform.position[2] += speed
-                if Input.get_key(pygame.K_a):
-                    transform.position[0] -= speed
-                if Input.get_key(pygame.K_d):
-                    transform.position[0] += speed
                 rot_speed = 0.2
+                transform = camera.game_object.transform
+                forward = forward_vector(transform.rotation)
+                right = np.array([-forward[2], 0, forward[0]], dtype="f4")
+                # TODO: Fix whatever the math error that is here
+                if Input.get_key(pygame.K_w):
+                    transform.position += forward * speed
+                if Input.get_key(pygame.K_s):
+                    transform.position -= forward * speed
+                if Input.get_key(pygame.K_a):
+                    transform.position -= right * speed
+                if Input.get_key(pygame.K_d):
+                    transform.position += right * speed
 
                 mx, my = Input.get_mouse_delta()
                 if Input.get_mouse_button(2):
                     transform.rotation[1] -= mx * rot_speed
                     transform.rotation[0] -= my * rot_speed
+                    pygame.mouse.set_visible(False)
+                    pygame.event.set_grab(True)
+                else:
+                    pygame.mouse.set_visible(True)
+                    pygame.event.set_grab(False)
 
         self.scene_manager.update()
 

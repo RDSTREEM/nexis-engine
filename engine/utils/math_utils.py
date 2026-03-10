@@ -79,3 +79,17 @@ def create_rotation_z(angle):
     mat[1][0] = s
     mat[1][1] = c
     return mat
+
+
+def forward_vector(rotation):
+    pitch = np.radians(rotation[0])
+    yaw = np.radians(rotation[1])
+
+    return np.array(
+        [
+            -np.sin(yaw) * np.cos(pitch),
+            np.sin(pitch),
+            -np.cos(yaw) * np.cos(pitch),
+        ],
+        dtype="f4",
+    )
