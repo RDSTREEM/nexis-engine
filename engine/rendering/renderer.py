@@ -1,7 +1,6 @@
 import moderngl
 from engine.components.mesh_renderer import MeshRenderer
 from engine.rendering.shader import Shader
-from engine.components.camera import Camera
 from engine.rendering.debug_rendering import DebugRenderer
 from engine.rendering.debug_shapes import draw_grid, draw_axis
 from engine.rendering.debug_shapes import draw_grid, draw_axis
@@ -26,10 +25,7 @@ class Renderer:
         self.render_debug()
 
     def render_scene(self, scene):
-        camera = None
-        for cam in scene.get_components(Camera):
-            camera = cam
-            break
+        camera = scene.get_active_camera()
         if camera is None:
             return
 

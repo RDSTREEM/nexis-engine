@@ -1,12 +1,14 @@
 import json
 import os
 from engine.scene.game_object import GameObject
+from engine.components.camera import Camera
 
 
 class Scene:
     def __init__(self, name="New Scene"):
         self.name = name
         self.game_objects = []
+        self.active_camera = None
 
     def add_object(self, game_object):
         self.game_objects.append(game_object)
@@ -15,6 +17,12 @@ class Scene:
         obj = GameObject(name)
         self.game_objects.append(obj)
         return obj
+
+    def set_active_camera(self, camera):
+        self.active_camera = camera
+
+    def get_active_camera(self):
+        return self.active_camera
 
     def remove_object(self, obj):
         if obj in self.game_objects:
@@ -60,3 +68,11 @@ class Scene:
             self.add_object(obj)
 
         self.name = os.path.basename(path)
+        main_camera = self.find("Main Camera")
+        if main_camera and main_camera.has_component(Camera):
+            self.set_active_camera(main_camera.get_component(Camera))
+        else:
+            # Fallback to first camera found
+            for cam in self.get_components(Camera):
+                self.set_active_camera(cam)
+                break

@@ -96,25 +96,21 @@ class Engine:
                 self.running = False
 
     def update(self):
-        self.scene_manager.update()
-
         scene = self.scene_manager.current_scene
         if scene:
-            for obj in scene.game_objects:
-                if obj.name == "Main Camera":
-                    speed = 3.0 * Time.delta_time
+            camera = scene.get_active_camera()
+            if camera:
+                speed = 3.0 * Time.delta_time
+                if Input.get_key(pygame.K_w):
+                    camera.game_object.transform.position[2] -= speed
+                if Input.get_key(pygame.K_s):
+                    camera.game_object.transform.position[2] += speed
+                if Input.get_key(pygame.K_a):
+                    camera.game_object.transform.position[0] -= speed
+                if Input.get_key(pygame.K_d):
+                    camera.game_object.transform.position[0] += speed
 
-                    if Input.get_key(pygame.K_w):
-                        obj.transform.position[2] -= speed
-
-                    if Input.get_key(pygame.K_s):
-                        obj.transform.position[2] += speed
-
-                    if Input.get_key(pygame.K_a):
-                        obj.transform.position[0] -= speed
-
-                    if Input.get_key(pygame.K_d):
-                        obj.transform.position[0] += speed
+        self.scene_manager.update()
 
     def render(self):
         if self.scene_manager.current_scene:
