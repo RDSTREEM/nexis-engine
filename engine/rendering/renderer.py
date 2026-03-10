@@ -27,11 +27,9 @@ class Renderer:
 
     def render_scene(self, scene):
         camera = None
-        for obj in scene.game_objects:
-            for comp in obj.components:
-                if isinstance(comp, Camera):
-                    camera = comp
-
+        for cam in scene.get_components(Camera):
+            camera = cam
+            break
         if camera is None:
             return
 
@@ -39,13 +37,11 @@ class Renderer:
         projection = camera.get_projection_matrix(aspect)
         view = camera.get_view_matrix()
 
-        for obj in scene.game_objects:
+        for renderer in scene.get_components(MeshRenderer):
+            obj = renderer.game_object
             model = obj.transform.get_model_matrix()
-
-            for comp in obj.components:
-                if isinstance(comp, MeshRenderer):
-                    mvp = projection @ view @ model
-                    comp.render(mvp)
+            mvp = projection @ view @ model
+            renderer.render(mvp)
 
     def render_debug(self):
         self.debug_renderer.clear()
