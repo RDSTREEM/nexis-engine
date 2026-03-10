@@ -1,7 +1,13 @@
 import numpy as np
 from engine.components.component import Component
 from engine.core.component_registry import ComponentRegistry
-from engine.utils.math_utils import create_perspective, create_orthographic
+from engine.utils.math_utils import (
+    create_perspective,
+    create_orthographic,
+    create_rotation_x,
+    create_rotation_y,
+    create_rotation_z,
+)
 
 
 class Camera(Component):
@@ -40,12 +46,21 @@ class Camera(Component):
             )
 
     def get_view_matrix(self):
-        position = np.array(self.game_object.transform.position, dtype="f4")
+        transform = self.game_object.transform
 
-        view = np.identity(4, dtype="f4")
-        view[0:3, 3] = -position[0:3]
+        position = transform.position
+        rotation = transform.rotation
 
-        return view
+        rx = create_rotation_x(rotation[0])
+        ry = create_rotation_y(rotation[1])
+        rz = create_rotation_z(rotation[2])
+
+        rotation_matrix = rz @ ry @ rx
+
+        translation = np.identity(4, dtype="f4")
+        translation[0:3, 3] = -position
+
+        return rotation_matrix @ translation
 
     def to_dict(self):
         return {
