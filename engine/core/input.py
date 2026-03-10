@@ -10,6 +10,8 @@ class Input:
     _prev_mouse_buttons = None
 
     _mouse_pos = (0, 0)
+    _mouse_delta = (0, 0)
+    _prev_mouse_pos = (0, 0)
 
     @classmethod
     def update(cls):
@@ -20,7 +22,15 @@ class Input:
         cls._keys = pygame.key.get_pressed()
         cls._mouse_buttons = pygame.mouse.get_pressed()
 
-        cls._mouse_pos = pygame.mouse.get_pos()
+        pos = pygame.mouse.get_pos()
+        if cls._prev_mouse_pos:
+            cls._mouse_delta = (
+                pos[0] - cls._prev_mouse_pos[0],
+                pos[1] - cls._prev_mouse_pos[1],
+            )
+
+        cls._prev_mouse_pos = pos
+        cls._mouse_pos = pos
 
     @classmethod
     def get_key(cls, key):
@@ -45,3 +55,7 @@ class Input:
     @classmethod
     def get_mouse_position(cls):
         return cls._mouse_pos
+
+    @classmethod
+    def get_mouse_delta(cls):
+        return cls._mouse_delta
