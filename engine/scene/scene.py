@@ -26,6 +26,12 @@ class Scene:
                 return obj
         return None
 
+    def get_components(self, component_type):
+        for obj in self.game_objects:
+            comp = obj.get_component(component_type)
+            if comp:
+                yield comp
+
     def clear(self):
         self.game_objects.clear()
 
