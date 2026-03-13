@@ -51,9 +51,9 @@ class Camera(Component):
         position = transform.position
         rotation = transform.rotation
 
-        rx = create_rotation_x(rotation[0])
-        ry = create_rotation_y(rotation[1])
-        rz = create_rotation_z(rotation[2])
+        rx = create_rotation_x(-rotation[0])
+        ry = create_rotation_y(-rotation[1])
+        rz = create_rotation_z(-rotation[2])
 
         rotation_matrix = rz @ ry @ rx
 

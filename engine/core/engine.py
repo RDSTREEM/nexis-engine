@@ -102,8 +102,9 @@ class Engine:
                 rot_speed = 0.2
                 transform = camera.game_object.transform
                 forward = forward_vector(transform.rotation)
-                right = np.array([-forward[2], 0, forward[0]], dtype="f4")
-                # TODO: Fix whatever the math error that is here
+                right = np.array([-forward[2], 0, -forward[0]], dtype="f4")
+                up = np.array([0, 1, 0], dtype="f4")
+                # Movement controls
                 if Input.get_key(pygame.K_w):
                     transform.position += forward * speed
                 if Input.get_key(pygame.K_s):
@@ -112,11 +113,15 @@ class Engine:
                     transform.position -= right * speed
                 if Input.get_key(pygame.K_d):
                     transform.position += right * speed
+                if Input.get_key(pygame.K_SPACE):
+                    transform.position += up * speed
+                if Input.get_key(pygame.K_LSHIFT):
+                    transform.position -= up * speed
 
                 mx, my = Input.get_mouse_delta()
                 if Input.get_mouse_button(2):
                     transform.rotation[1] -= mx * rot_speed
-                    transform.rotation[0] -= my * rot_speed
+                    transform.rotation[0] += my * rot_speed
                     pygame.mouse.set_visible(False)
                     pygame.event.set_grab(True)
                 else:

@@ -50,6 +50,15 @@ class DebugDraw:
             cls.line((-size, 0, i), (size, 0, i))
 
     @classmethod
+    def axis(cls, size=5):
+        # X axis
+        cls.line((0, 0, 0), (size, 0, 0))
+        # Y axis
+        cls.line((0, 0, 0), (0, size, 0))
+        # Z axis
+        cls.line((0, 0, 0), (0, 0, size))
+
+    @classmethod
     def box(cls, center, size):
         x, y, z = center
         if isinstance(size, (list, tuple)):

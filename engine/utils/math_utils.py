@@ -88,7 +88,7 @@ def forward_vector(rotation):
     return np.array(
         [
             -np.sin(yaw) * np.cos(pitch),
-            np.sin(pitch),
+            -np.sin(pitch),
             -np.cos(yaw) * np.cos(pitch),
         ],
         dtype="f4",
