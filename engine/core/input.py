@@ -53,6 +53,18 @@ class Input:
         return cls._mouse_buttons and cls._mouse_buttons[button]
 
     @classmethod
+    def get_mouse_button_down(cls, button):
+        if cls._mouse_buttons is not None and cls._prev_mouse_buttons is not None:
+            return cls._mouse_buttons[button] and not cls._prev_mouse_buttons[button]
+        return False
+
+    @classmethod
+    def get_mouse_button_up(cls, button):
+        if cls._mouse_buttons is not None and cls._prev_mouse_buttons is not None:
+            return not cls._mouse_buttons[button] and cls._prev_mouse_buttons[button]
+        return False
+
+    @classmethod
     def get_mouse_position(cls):
         return cls._mouse_pos
 
