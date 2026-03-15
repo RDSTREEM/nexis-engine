@@ -93,3 +93,51 @@ def forward_vector(rotation):
         ],
         dtype="f4",
     )
+
+
+def screen_point_to_ray(mouse_pos, camera, screen_width, screen_height):
+    x, y = mouse_pos
+    ndc_x = (2.0 * x) / screen_width - 1.0
+    ndc_y = 1.0 - (2.0 * y) / screen_height
+
+    projection = camera.get_projection_matrix(screen_width / screen_height)
+    view = camera.get_view_matrix()
+
+    inv_proj = np.linalg.inv(projection)
+    inv_view = np.linalg.inv(view)
+
+    near_point = np.array([ndc_x, ndc_y, -1.0, 1.0], dtype="f4")
+    far_point = np.array([ndc_x, ndc_y, 1.0, 1.0], dtype="f4")
+
+    world_near = inv_view @ (inv_proj @ near_point)
+    world_far = inv_view @ (inv_proj @ far_point)
+
+    if world_near[3] != 0:
+        world_near /= world_near[3]
+    if world_far[3] != 0:
+        world_far /= world_far[3]
+
+    origin = world_near[0:3]
+    direction = world_far[0:3] - origin
+    norm = np.linalg.norm(direction)
+    if norm != 0:
+        direction = direction / norm
+
+    return origin, direction
+
+
+def get_ground_intersection(
+    mouse_pos, camera, screen_width, screen_height, plane_y=0.0
+):
+    origin, direction = screen_point_to_ray(
+        mouse_pos, camera, screen_width, screen_height
+    )
+
+    if abs(direction[1]) < 1e-6:
+        return None
+
+    t = (plane_y - origin[1]) / direction[1]
+    if t < 0:
+        return None
+
+    return origin + direction * t

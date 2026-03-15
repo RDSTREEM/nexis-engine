@@ -11,7 +11,11 @@ from engine.scene.scene_manager import SceneManager
 from engine.scene.scene import Scene
 from engine.core.input import Input
 from engine.rendering.primitives import create_cube, create_plane, create_quad
-from engine.utils.math_utils import forward_vector
+from engine.utils.math_utils import (
+    forward_vector,
+    screen_point_to_ray,
+    get_ground_intersection,
+)
 
 
 class Engine:
@@ -130,7 +134,9 @@ class Engine:
 
                 if Input.get_mouse_button_down(0):
                     screen_pos = Input.get_mouse_position()
-                    hit = self._get_ground_intersection(screen_pos, camera)
+                    hit = get_ground_intersection(
+                        screen_pos, camera, self.width, self.height
+                    )
                     if hit is not None:
                         self._place_object(scene, hit)
 
@@ -139,50 +145,6 @@ class Engine:
     def render(self):
         if self.scene_manager.current_scene:
             self.renderer.render(self.scene_manager.current_scene)
-
-    def _screen_point_to_ray(self, mouse_pos, camera):
-        x, y = mouse_pos
-        ndc_x = (2.0 * x) / self.width - 1.0
-        ndc_y = 1.0 - (2.0 * y) / self.height
-
-        projection = camera.get_projection_matrix(
-            self.renderer.ctx.screen.width / self.renderer.ctx.screen.height
-        )
-        view = camera.get_view_matrix()
-
-        inv_proj = np.linalg.inv(projection)
-        inv_view = np.linalg.inv(view)
-
-        near_point = np.array([ndc_x, ndc_y, -1.0, 1.0], dtype="f4")
-        far_point = np.array([ndc_x, ndc_y, 1.0, 1.0], dtype="f4")
-
-        world_near = inv_view @ (inv_proj @ near_point)
-        world_far = inv_view @ (inv_proj @ far_point)
-
-        if world_near[3] != 0:
-            world_near /= world_near[3]
-        if world_far[3] != 0:
-            world_far /= world_far[3]
-
-        origin = world_near[0:3]
-        direction = world_far[0:3] - origin
-        norm = np.linalg.norm(direction)
-        if norm != 0:
-            direction = direction / norm
-
-        return origin, direction
-
-    def _get_ground_intersection(self, mouse_pos, camera, plane_y=0.0):
-        origin, direction = self._screen_point_to_ray(mouse_pos, camera)
-
-        if abs(direction[1]) < 1e-6:
-            return None
-
-        t = (plane_y - origin[1]) / direction[1]
-        if t < 0:
-            return None
-
-        return origin + direction * t
 
     def _place_object(self, scene, position):
         from engine.components.mesh_renderer import MeshRenderer
