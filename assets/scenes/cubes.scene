@@ -50,7 +50,7 @@
                 {
                     "type": "MeshRenderer",
                     "mesh": "cube",
-                    "material": "default_blue"
+                    "material": "default_red"
                 }
             ]
         },
@@ -77,7 +77,7 @@
                 {
                     "type": "MeshRenderer",
                     "mesh": "cube",
-                    "material": "default_blue"
+                    "material": "default_green"
                 }
             ]
         },

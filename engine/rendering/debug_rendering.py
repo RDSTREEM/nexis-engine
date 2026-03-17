@@ -27,6 +27,12 @@ class DebugDraw:
             mvp = projection @ view
             shader.set_uniform_matrix("mvp", mvp)
 
+        # Debug lines render with white color
+        try:
+            shader.set_uniform_vec4("color", (1.0, 1.0, 1.0, 1.0))
+        except Exception:
+            pass
+
         vertices = []
         for line in cls.lines:
             vertices.extend(line[:3])

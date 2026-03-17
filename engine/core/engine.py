@@ -62,13 +62,17 @@ class Engine:
         plane_mesh = create_plane(self.renderer.ctx)
         quad_mesh = create_quad(self.renderer.ctx)
 
-        material = Material(shader)
+        blue_material = Material(shader, (0.2, 0.6, 1.0, 1.0))
+        red_material = Material(shader, (1.0, 0.2, 0.2, 1.0))
+        green_material = Material(shader, (0.2, 1.0, 0.2, 1.0))
 
         AssetManager.register_mesh("cube", cube_mesh)
         AssetManager.register_mesh("plane", plane_mesh)
         AssetManager.register_mesh("quad", quad_mesh)
         AssetManager.register_mesh("triangle", mesh)
-        AssetManager.register_material("default_blue", material)
+        AssetManager.register_material("default_blue", blue_material)
+        AssetManager.register_material("default_red", red_material)
+        AssetManager.register_material("default_green", green_material)
 
         scene.load("./assets/scenes/cubes.scene")
         self.scene_manager.load_scene(scene)
@@ -138,33 +142,20 @@ class Engine:
                         screen_pos, camera, self.width, self.height
                     )
                     if hit is not None:
-                        self._place_object(scene, hit)
+                        colors = [
+                            "default_blue",
+                            "default_red",
+                            "default_green",
+                        ]
+                        material_name = colors[len(scene.game_objects) % len(colors)]
+                        scene.place_object(
+                            np.array([hit[0], hit[1], hit[2]], dtype="f4"),
+                            mesh_name="cube",
+                            material_name=material_name,
+                        )
 
         self.scene_manager.update()
 
     def render(self):
         if self.scene_manager.current_scene:
             self.renderer.render(self.scene_manager.current_scene)
-
-    def _place_object(self, scene, position):
-        from engine.components.mesh_renderer import MeshRenderer
-
-        mesh = AssetManager.get_mesh("cube")
-        material = AssetManager.get_material("default_blue")
-
-        if mesh is None or material is None:
-            self.logger.warning(
-                "Cannot place object: cube mesh or default_blue material not found"
-            )
-            return
-
-        count = len(scene.game_objects)
-        obj = scene.create_object(f"PlacedCube_{count}")
-        obj.transform.position = np.array(
-            [position[0], position[1], position[2]], dtype="f4"
-        )
-        obj.transform.rotation = np.array([0.0, 0.0, 0.0], dtype="f4")
-        obj.transform.scale = np.array([1.0, 1.0, 1.0], dtype="f4")
-        obj.add_component(
-            MeshRenderer, mesh, material, mesh_name="cube", material_name="default_blue"
-        )

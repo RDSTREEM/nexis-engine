@@ -12,3 +12,6 @@ class Shader:
 
     def set_uniform_matrix(self, name, matrix):
         self.program[name].write(matrix.T.astype("f4").tobytes())
+
+    def set_uniform_vec4(self, name, value):
+        self.program[name].value = tuple(float(v) for v in value)

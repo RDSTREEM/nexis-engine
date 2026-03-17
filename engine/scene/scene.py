@@ -18,6 +18,32 @@ class Scene:
         self.game_objects.append(obj)
         return obj
 
+    def place_object(self, position, mesh_name="cube", material_name="default_blue"):
+        from engine.components.mesh_renderer import MeshRenderer
+        from engine.core.asset_manager import AssetManager
+
+        mesh = AssetManager.get_mesh(mesh_name)
+        material = AssetManager.get_material(material_name)
+
+        if mesh is None or material is None:
+            return None
+
+        count = len(self.game_objects)
+        obj = self.create_object(f"Placed_{mesh_name}_{count}")
+        obj.transform.position = position
+        obj.transform.rotation = [0.0, 0.0, 0.0]
+        obj.transform.scale = [1.0, 1.0, 1.0]
+
+        obj.add_component(
+            MeshRenderer,
+            mesh,
+            material,
+            mesh_name=mesh_name,
+            material_name=material_name,
+        )
+
+        return obj
+
     def set_active_camera(self, camera):
         self.active_camera = camera
 

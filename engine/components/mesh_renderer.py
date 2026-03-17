@@ -29,6 +29,8 @@ class MeshRenderer(Component):
             return
 
         self.material.shader.set_uniform_matrix("mvp", mvp)
+        if hasattr(self.material, "color"):
+            self.material.shader.set_uniform_vec4("color", self.material.color)
 
         self.vao.render()
 
