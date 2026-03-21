@@ -151,7 +151,9 @@ class Engine:
                                 "default_red",
                                 "default_green",
                             ]
-                            material_name = colors[len(scene.game_objects) % len(colors)]
+                            material_name = colors[
+                                len(scene.game_objects) % len(colors)
+                            ]
                             scene.place_object(
                                 np.array([hit[0], hit[1], hit[2]], dtype="f4"),
                                 mesh_name="cube",
