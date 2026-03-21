@@ -92,3 +92,29 @@ class DebugDraw:
         for i in range(-size, size + 1, step):
             cls.line((i, -size, 0), (i, size, 0))
             cls.line((-size, i, 0), (size, i, 0))
+
+    @classmethod
+    def axis_at(cls, center, length=1.0):
+        x, y, z = center
+        cls.line((x, y, z), (x + length, y, z))
+        cls.line((x, y, z), (x, y + length, z))
+        cls.line((x, y, z), (x, y, z + length))
+
+    @classmethod
+    def transform_gizmo(cls, center, scale=(1.0, 1.0, 1.0)):
+        # Axis gizmo at the object transform position
+        cls.axis_at(center, length=1.2)
+
+        # Wireframe box around object for transform visualization
+        if isinstance(scale, (list, tuple, np.ndarray)):
+            if len(scale) == 3:
+                cls.box(
+                    center,
+                    (abs(scale[0]) + 0.2, abs(scale[1]) + 0.2, abs(scale[2]) + 0.2),
+                )
+                return
+        try:
+            s = float(scale)
+            cls.box(center, s + 0.2)
+        except Exception:
+            cls.box(center, 1.2)

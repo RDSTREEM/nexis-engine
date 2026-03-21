@@ -9,6 +9,7 @@ class Scene:
         self.name = name
         self.game_objects = []
         self.active_camera = None
+        self.selected_object = None
 
     def add_object(self, game_object):
         self.game_objects.append(game_object)
