@@ -51,4 +51,15 @@ class Renderer:
         DebugDraw.grid()
         DebugDraw.axis()
 
+        # Draw transform gizmos for all objects
+        for obj in scene.game_objects:
+            DebugDraw.transform_gizmo(obj.transform.position, obj.transform.scale)
+
+        # Highlight selected object if exists
+        selected = scene.get_selected_object()
+        if selected is not None:
+            DebugDraw.box(
+                selected.transform.position, tuple(selected.transform.scale * 1.4)
+            )
+
         DebugDraw.render(self.shader, projection, view)

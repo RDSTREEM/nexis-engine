@@ -51,6 +51,12 @@ class Scene:
     def get_active_camera(self):
         return self.active_camera
 
+    def get_selected_object(self):
+        return self.selected_object
+
+    def set_selected_object(self, obj):
+        self.selected_object = obj
+
     def remove_object(self, obj):
         if obj in self.game_objects:
             self.game_objects.remove(obj)

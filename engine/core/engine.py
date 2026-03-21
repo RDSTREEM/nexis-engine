@@ -138,23 +138,55 @@ class Engine:
 
                 if Input.get_mouse_button_down(0):
                     screen_pos = Input.get_mouse_position()
-                    hit = get_ground_intersection(
-                        screen_pos, camera, self.width, self.height
-                    )
-                    if hit is not None:
-                        colors = [
-                            "default_blue",
-                            "default_red",
-                            "default_green",
-                        ]
-                        material_name = colors[len(scene.game_objects) % len(colors)]
-                        scene.place_object(
-                            np.array([hit[0], hit[1], hit[2]], dtype="f4"),
-                            mesh_name="cube",
-                            material_name=material_name,
+                    if Input.get_key(pygame.K_LCTRL) or Input.get_key(pygame.K_RCTRL):
+                        picked = self.pick_object(scene, camera, screen_pos)
+                        scene.set_selected_object(picked)
+                    else:
+                        hit = get_ground_intersection(
+                            screen_pos, camera, self.width, self.height
                         )
+                        if hit is not None:
+                            colors = [
+                                "default_blue",
+                                "default_red",
+                                "default_green",
+                            ]
+                            material_name = colors[len(scene.game_objects) % len(colors)]
+                            scene.place_object(
+                                np.array([hit[0], hit[1], hit[2]], dtype="f4"),
+                                mesh_name="cube",
+                                material_name=material_name,
+                            )
+
+                if Input.get_mouse_button_down(2):
+                    screen_pos = Input.get_mouse_position()
+                    picked = self.pick_object(scene, camera, screen_pos)
+                    scene.set_selected_object(picked)
 
         self.scene_manager.update()
+
+    def pick_object(self, scene, camera, mouse_screen_pos, radius=0.75):
+        origin, direction = screen_point_to_ray(
+            mouse_screen_pos, camera, self.width, self.height
+        )
+
+        closest = None
+        closest_t = float("inf")
+
+        for obj in scene.game_objects:
+            center = obj.transform.position
+            oc = origin - center
+            b = np.dot(oc, direction)
+            c = np.dot(oc, oc) - radius * radius
+            discriminant = b * b - c
+            if discriminant < 0:
+                continue
+            t = -b - np.sqrt(discriminant)
+            if 0 < t < closest_t:
+                closest_t = t
+                closest = obj
+
+        return closest
 
     def render(self):
         if self.scene_manager.current_scene:
