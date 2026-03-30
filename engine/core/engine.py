@@ -27,6 +27,11 @@ class Engine:
 
         self.logger = setup_logger()
 
+        self.imgui = None
+        self.imgui_renderer = None
+        self.show_ui = True
+        self.show_debug = True
+
     def initialize(self):
         pygame.init()
         pygame.display.set_caption(self.title)
@@ -41,6 +46,30 @@ class Engine:
 
         self.renderer = Renderer()
         self.scene_manager = SceneManager()
+
+        # Default input action map
+        Input.register_action("move_forward", pygame.K_w)
+        Input.register_action("move_back", pygame.K_s)
+        Input.register_action("move_left", pygame.K_a)
+        Input.register_action("move_right", pygame.K_d)
+        Input.register_action("move_up", pygame.K_SPACE)
+        Input.register_action("move_down", pygame.K_LSHIFT)
+        Input.register_action("spawn_cube", pygame.K_e)
+        Input.register_action("toggle_ui", pygame.K_TAB)
+
+        # Setup UI (pyimgui)
+        try:
+            import imgui
+            from imgui.integrations.pygame import PygameRenderer
+
+            imgui.create_context()
+            self.imgui = imgui
+            self.imgui_renderer = PygameRenderer()
+            self.logger.info("ImGui initialized")
+        except Exception as e:
+            self.logger.warning(f"ImGui unavailable: {e}")
+            self.imgui = None
+            self.imgui_renderer = None
 
         scene = Scene("Main Scene")
 
@@ -193,3 +222,42 @@ class Engine:
     def render(self):
         if self.scene_manager.current_scene:
             self.renderer.render(self.scene_manager.current_scene)
+
+        if self.imgui:
+            self.imgui.new_frame()
+
+            if self.show_ui:
+                self.imgui.begin("Nexis Engine UI", True)
+                self.imgui.text(f"FPS: {self.clock.get_fps():.1f}")
+                self.imgui.text(
+                    f"Objects: {len(self.scene_manager.current_scene.game_objects)}"
+                )
+                selected = self.scene_manager.current_scene.get_selected_object()
+                if selected:
+                    self.imgui.text(f"Selected: {selected.name}")
+                    pos = selected.transform.position
+                    rot = selected.transform.rotation
+                    scl = selected.transform.scale
+                    self.imgui.text(f"Pos: {pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f}")
+                    self.imgui.text(f"Rot: {rot[0]:.2f}, {rot[1]:.2f}, {rot[2]:.2f}")
+                    self.imgui.text(f"Scale: {scl[0]:.2f}, {scl[1]:.2f}, {scl[2]:.2f}")
+
+                    if self.imgui.button("Delete Selected"):
+                        self.scene_manager.current_scene.remove_object(selected)
+                        self.scene_manager.current_scene.set_selected_object(None)
+
+                if self.imgui.button("Spawn Cube"):
+                    from engine.scene.scene import Scene
+
+                    self.scene_manager.current_scene.place_object(
+                        self.scene_manager.current_scene.get_active_camera().game_object.transform.position
+                        + [0, 0, -5],
+                        mesh_name="cube",
+                        material_name="default_blue",
+                    )
+
+                self.imgui.end()
+
+            self.imgui.end_frame()
+            self.imgui.render()
+            self.imgui_renderer.render(self.imgui.get_draw_data())

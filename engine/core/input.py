@@ -13,6 +13,37 @@ class Input:
     _mouse_delta = (0, 0)
     _prev_mouse_pos = (0, 0)
 
+    _actions = {}
+
+    @classmethod
+    def register_action(cls, name, key):
+        cls._actions[name] = key
+
+    @classmethod
+    def unregister_action(cls, name):
+        cls._actions.pop(name, None)
+
+    @classmethod
+    def get_action(cls, name):
+        key = cls._actions.get(name)
+        if key is None:
+            return False
+        return cls.get_key(key)
+
+    @classmethod
+    def get_action_down(cls, name):
+        key = cls._actions.get(name)
+        if key is None:
+            return False
+        return cls.get_key_down(key)
+
+    @classmethod
+    def get_action_up(cls, name):
+        key = cls._actions.get(name)
+        if key is None:
+            return False
+        return cls.get_key_up(key)
+
     @classmethod
     def update(cls):
 
