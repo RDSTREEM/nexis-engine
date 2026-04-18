@@ -9,9 +9,8 @@ class Input:
     _mouse_buttons = None
     _prev_mouse_buttons = None
 
-    _mouse_pos = (0, 0)
-    _mouse_delta = (0, 0)
-    _prev_mouse_pos = (0, 0)
+    _mouse_scroll = 0
+    _prev_mouse_scroll = 0
 
     _actions = {}
 
@@ -63,6 +62,9 @@ class Input:
         cls._prev_mouse_pos = pos
         cls._mouse_pos = pos
 
+        cls._prev_mouse_scroll = cls._mouse_scroll
+        cls._mouse_scroll = 0
+
     @classmethod
     def get_key(cls, key):
         return cls._keys and cls._keys[key]
@@ -100,5 +102,10 @@ class Input:
         return cls._mouse_pos
 
     @classmethod
-    def get_mouse_delta(cls):
-        return cls._mouse_delta
+    def process_event(cls, event):
+        if event.type == pygame.MOUSEWHEEL:
+            cls._mouse_scroll = event.y
+
+    @classmethod
+    def get_mouse_scroll(cls):
+        return cls._prev_mouse_scroll
