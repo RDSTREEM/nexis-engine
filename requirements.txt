@@ -2,6 +2,7 @@ black==26.3.0
 click==8.3.1
 colorama==0.4.6
 glcontext==3.0.0
+imgui-bundle==7.6.1
 markdown-it-py==4.0.0
 mdurl==0.1.2
 moderngl==5.12.0

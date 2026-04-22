@@ -9,6 +9,10 @@ class Input:
     _mouse_buttons = None
     _prev_mouse_buttons = None
 
+    _mouse_pos = (0, 0)
+    _prev_mouse_pos = (0, 0)
+    _mouse_delta = (0, 0)
+
     _mouse_scroll = 0
     _prev_mouse_scroll = 0
 
@@ -100,6 +104,10 @@ class Input:
     @classmethod
     def get_mouse_position(cls):
         return cls._mouse_pos
+
+    @classmethod
+    def get_mouse_delta(cls):
+        return cls._mouse_delta
 
     @classmethod
     def process_event(cls, event):

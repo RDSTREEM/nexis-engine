@@ -1,21 +1,20 @@
 import pygame
 import numpy as np
+
 from engine.core.time import Time
 from engine.core.logger import setup_logger
 from engine.core.asset_manager import AssetManager
+from engine.core.input import Input
+
 from engine.rendering.renderer import Renderer
 from engine.rendering.material import Material
 from engine.rendering.mesh import Mesh
 from engine.rendering.shader import Shader
+from engine.rendering.primitives import create_cube, create_plane, create_quad
+
 from engine.scene.scene_manager import SceneManager
 from engine.scene.scene import Scene
-from engine.core.input import Input
-from engine.rendering.primitives import create_cube, create_plane, create_quad
-from engine.utils.math_utils import (
-    forward_vector,
-    screen_point_to_ray,
-    get_ground_intersection,
-)
+
 from editor.core.editor import Editor
 
 
@@ -46,10 +45,10 @@ class Engine:
         self.renderer = Renderer()
         self.scene_manager = SceneManager()
 
-        # Setup UI (pyimgui)
+        # Setup ImGui (imgui_bundle)
         try:
-            import imgui
-            from imgui.integrations.pygame import PygameRenderer
+            from imgui_bundle import imgui
+            from imgui_bundle import PygameRenderer
 
             imgui.create_context()
             self.imgui = imgui

@@ -4,6 +4,13 @@ class EditorUI:
         self.imgui = engine.imgui
         self.imgui_renderer = engine.imgui_renderer
         self.show_ui = True
+        self.tool_mode = "select"
+
+        # UI layout state
+        self.scene_tree_expanded = True
+
+    def set_tool_mode(self, mode):
+        self.tool_mode = mode
 
     def render(self):
         if not self.imgui:
@@ -12,48 +19,187 @@ class EditorUI:
         self.imgui.new_frame()
 
         if self.show_ui:
-            self.render_main_ui()
+            self.render_toolbar()
+            self.render_scene_hierarchy()
+            self.render_properties()
+            self.render_status_bar()
 
-        self.imgui.end_frame()
-        self.imgui.render()
-        self.imgui_renderer.render(self.imgui.get_draw_data())
+        self.imgui.render(self.imgui.get_draw_data())
 
-    def render_main_ui(self):
-        self.imgui.begin("Nexis Engine Editor", True)
+    def render_toolbar(self):
+        self.imgui.set_next_window_position(0, 0)
+        self.imgui.set_next_window_size(self.engine.width, 40)
+        self.imgui.begin("Toolbar", True)
+        self.imgui.set_window_pos((0, 0))
+        self.imgui.set_window_size((self.engine.width, 40))
 
-        # Performance info
-        self.imgui.text(f"FPS: {self.engine.clock.get_fps():.1f}")
+        self.imgui.text("  Tools:  ")
+
+        # Tool buttons
+        if self.tool_mode == "select":
+            self.imgui.push_style_color(self.imgui.Col.color_button, 0.3, 0.5, 0.8, 1.0)
+        if self.imgui.button("Select##tool_select"):
+            self.tool_mode = "select"
+        if self.tool_mode == "select":
+            self.imgui.pop_style_color()
+
+        self.imgui.same_line()
+
+        if self.tool_mode == "move":
+            self.imgui.push_style_color(self.imgui.Col.color_button, 0.3, 0.5, 0.8, 1.0)
+        if self.imgui.button("Move##tool_move"):
+            self.tool_mode = "move"
+        if self.tool_mode == "move":
+            self.imgui.pop_style_color()
+
+        self.imgui.same_line()
+
+        if self.tool_mode == "hand":
+            self.imgui.push_style_color(self.imgui.Col.color_button, 0.3, 0.5, 0.8, 1.0)
+        if self.imgui.button("Hand##tool_hand"):
+            self.tool_mode = "hand"
+        if self.tool_mode == "hand":
+            self.imgui.pop_style_color()
+
+        self.imgui.same_line()
+
+        if self.tool_mode == "place":
+            self.imgui.push_style_color(self.imgui.Col.color_button, 0.3, 0.5, 0.8, 1.0)
+        if self.imgui.button("Place##tool_place"):
+            self.tool_mode = "place"
+        if self.tool_mode == "place":
+            self.imgui.pop_style_color()
+
+        self.imgui.same_line()
+        self.imgui.text("  |  ")
+        self.imgui.same_line()
+
+        # Help text
+        if self.tool_mode == "hand":
+            self.imgui.text(
+                "Hand: Right-drag to pan, Scroll to zoom, Alt+Left-drag to orbit"
+            )
+        elif self.tool_mode == "place":
+            self.imgui.text("Place: Left-click to place cube")
+        elif self.tool_mode == "select":
+            self.imgui.text("Select: Left-click to select objects")
+        elif self.tool_mode == "move":
+            self.imgui.text("Move: WASD to fly, Right-drag to orbit, Scroll to zoom")
+
+        self.imgui.end()
+
+    def render_scene_hierarchy(self):
+        self.imgui.set_next_window_position(0, 40)
+        self.imgui.set_next_window_size(250, 400)
+        self.imgui.begin("Scene Hierarchy", True)
+
         scene = self.engine.scene_manager.current_scene
         if scene:
-            self.imgui.text(f"Objects: {len(scene.game_objects)}")
+            # Toggle scene tree
+            if self.imgui.tree_node(
+                "Game Objects", self.imgui.TreeNodeFlag.default_open
+            ):
+                for obj in scene.game_objects:
+                    is_selected = scene.get_selected_object() == obj
+                    if is_selected:
+                        self.imgui.push_style_color(
+                            self.imgui.Col.text, 1.0, 0.8, 0.4, 1.0
+                        )
 
-            # Selected object info
+                    # Object node with icon
+                    self.imgui.text(f"  [ ] {obj.name}")
+
+                    if is_selected:
+                        self.imgui.pop_style_color()
+
+                self.imgui.tree_pop()
+
+            # Stats
+            self.imgui.separator()
+            self.imgui.text(f"Total Objects: {len(scene.game_objects)}")
+
+        self.imgui.end()
+
+    def render_properties(self):
+        self.imgui.set_next_window_position(0, 440)
+        self.imgui.set_next_window_size(300, self.engine.height - 440)
+        self.imgui.begin("Properties", True)
+
+        scene = self.engine.scene_manager.current_scene
+        if scene:
             selected = scene.get_selected_object()
             if selected:
-                self.imgui.text(f"Selected: {selected.name}")
-                pos = selected.transform.position
-                rot = selected.transform.rotation
-                scl = selected.transform.scale
-                self.imgui.text(f"Position: {pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f}")
-                self.imgui.text(f"Rotation: {rot[0]:.2f}, {rot[1]:.2f}, {rot[2]:.2f}")
-                self.imgui.text(f"Scale: {scl[0]:.2f}, {scl[1]:.2f}, {scl[2]:.2f}")
+                self.imgui.text(f"Object: {selected.name}")
+                self.imgui.separator()
 
-                if self.imgui.button("Delete Selected"):
+                # Transform section
+                if self.imgui.tree_node(
+                    "Transform", self.imgui.TreeNodeFlag.default_open
+                ):
+                    pos = selected.transform.position
+                    rot = selected.transform.rotation
+                    scl = selected.transform.scale
+
+                    self.imgui.text("Position")
+                    self.imgui.same_line(80)
+                    self.imgui.text(f"X: {pos[0]:.2f}")
+                    self.imgui.same_line()
+                    self.imgui.text(f"Y: {pos[1]:.2f}")
+                    self.imgui.same_line()
+                    self.imgui.text(f"Z: {pos[2]:.2f}")
+
+                    self.imgui.text("Rotation")
+                    self.imgui.same_line(80)
+                    self.imgui.text(f"X: {rot[0]:.2f}")
+                    self.imgui.same_line()
+                    self.imgui.text(f"Y: {rot[1]:.2f}")
+                    self.imgui.same_line()
+                    self.imgui.text(f"Z: {rot[2]:.2f}")
+
+                    self.imgui.text("Scale")
+                    self.imgui.same_line(80)
+                    self.imgui.text(f"X: {scl[0]:.2f}")
+                    self.imgui.same_line()
+                    self.imgui.text(f"Y: {scl[1]:.2f}")
+                    self.imgui.same_line()
+                    self.imgui.text(f"Z: {scl[2]:.2f}")
+
+                    self.imgui.tree_pop()
+
+                # Components section
+                if self.imgui.tree_node("Components"):
+                    for comp in selected.components:
+                        self.imgui.text(f"  > {comp.__class__.__name__}")
+                    self.imgui.tree_pop()
+
+                # Actions
+                self.imgui.separator()
+                if self.imgui.button("Delete Object"):
                     scene.remove_object(selected)
                     scene.set_selected_object(None)
+            else:
+                self.imgui.text("No object selected")
+                self.imgui.text("Use Select tool and click")
+                self.imgui.text("an object to edit properties")
 
-            # Spawn buttons
-            if self.imgui.button("Spawn Cube"):
-                camera = scene.get_active_camera()
-                if camera:
-                    spawn_pos = camera.game_object.transform.position + [0, 0, -5]
-                    colors = ["default_blue", "default_red", "default_green"]
-                    material_name = colors[len(scene.game_objects) % len(colors)]
-                    scene.place_object(
-                        spawn_pos,
-                        mesh_name="cube",
-                        material_name=material_name,
-                    )
+        self.imgui.end()
+
+    def render_status_bar(self):
+        self.imgui.set_next_window_position(0, self.engine.height - 25)
+        self.imgui.set_next_window_size(self.engine.width, 25)
+        self.imgui.begin("Status", True)
+        self.imgui.set_window_pos((0, self.engine.height - 25))
+        self.imgui.set_window_size((self.engine.width, 25))
+
+        scene = self.engine.scene_manager.current_scene
+        selected = scene.get_selected_object() if scene else None
+
+        self.imgui.text(
+            f"FPS: {self.engine.clock.get_fps():.1f} | Tool: {self.tool_mode.upper()} | Objects: {len(scene.game_objects) if scene else 0}"
+        )
+        if selected:
+            self.imgui.same_line()
+            self.imgui.text(f" | Selected: {selected.name}")
 
         self.imgui.end()
 
