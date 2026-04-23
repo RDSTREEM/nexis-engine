@@ -1,8 +1,10 @@
+from imgui_bundle import imgui
+
+
 class EditorUI:
     def __init__(self, engine):
         self.engine = engine
-        self.imgui = engine.imgui
-        self.imgui_renderer = engine.imgui_renderer
+        self.imgui = imgui  # Use imgui_bundle directly
         self.show_ui = True
         self.tool_mode = "select"
 
@@ -13,18 +15,23 @@ class EditorUI:
         self.tool_mode = mode
 
     def render(self):
+        """
+        Render the editor UI.
+        Note: imgui.new_frame() is called by ImGuiLayer before this.
+        Rendering is handled by ModernGLImGuiRenderer after this.
+        """
         if not self.imgui:
             return
 
-        self.imgui.new_frame()
+        # Note: We don't call new_frame() or render() here anymore.
+        # The ImGuiLayer handles frame management in the Engine.
+        # We just call the UI rendering functions.
 
         if self.show_ui:
             self.render_toolbar()
             self.render_scene_hierarchy()
             self.render_properties()
             self.render_status_bar()
-
-        self.imgui.render(self.imgui.get_draw_data())
 
     def render_toolbar(self):
         self.imgui.set_next_window_position(0, 0)
@@ -37,7 +44,9 @@ class EditorUI:
 
         # Tool buttons
         if self.tool_mode == "select":
-            self.imgui.push_style_color(self.imgui.Col.color_button, 0.3, 0.5, 0.8, 1.0)
+            self.imgui.push_style_color(
+                self.imgui.Col_.color_button, 0.3, 0.5, 0.8, 1.0
+            )
         if self.imgui.button("Select##tool_select"):
             self.tool_mode = "select"
         if self.tool_mode == "select":
@@ -46,7 +55,9 @@ class EditorUI:
         self.imgui.same_line()
 
         if self.tool_mode == "move":
-            self.imgui.push_style_color(self.imgui.Col.color_button, 0.3, 0.5, 0.8, 1.0)
+            self.imgui.push_style_color(
+                self.imgui.Col_.color_button, 0.3, 0.5, 0.8, 1.0
+            )
         if self.imgui.button("Move##tool_move"):
             self.tool_mode = "move"
         if self.tool_mode == "move":
@@ -55,7 +66,9 @@ class EditorUI:
         self.imgui.same_line()
 
         if self.tool_mode == "hand":
-            self.imgui.push_style_color(self.imgui.Col.color_button, 0.3, 0.5, 0.8, 1.0)
+            self.imgui.push_style_color(
+                self.imgui.Col_.color_button, 0.3, 0.5, 0.8, 1.0
+            )
         if self.imgui.button("Hand##tool_hand"):
             self.tool_mode = "hand"
         if self.tool_mode == "hand":
@@ -64,7 +77,9 @@ class EditorUI:
         self.imgui.same_line()
 
         if self.tool_mode == "place":
-            self.imgui.push_style_color(self.imgui.Col.color_button, 0.3, 0.5, 0.8, 1.0)
+            self.imgui.push_style_color(
+                self.imgui.Col_.color_button, 0.3, 0.5, 0.8, 1.0
+            )
         if self.imgui.button("Place##tool_place"):
             self.tool_mode = "place"
         if self.tool_mode == "place":
@@ -103,7 +118,7 @@ class EditorUI:
                     is_selected = scene.get_selected_object() == obj
                     if is_selected:
                         self.imgui.push_style_color(
-                            self.imgui.Col.text, 1.0, 0.8, 0.4, 1.0
+                            self.imgui.Col_.text, 1.0, 0.8, 0.4, 1.0
                         )
 
                     # Object node with icon

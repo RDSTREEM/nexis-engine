@@ -17,6 +17,11 @@ from engine.scene.scene import Scene
 
 from editor.core.editor import Editor
 
+# ImGui integration
+from imgui_bundle import imgui
+from engine.editor.imgui_renderer import ModernGLImGuiRenderer
+from engine.editor.imgui_layer import ImGuiLayer
+
 
 class Engine:
     def __init__(self, width=1280, height=720, title="Nexis Engine"):
@@ -27,8 +32,10 @@ class Engine:
 
         self.logger = setup_logger()
 
+        # ImGui components
         self.imgui = None
         self.imgui_renderer = None
+        self.imgui_layer = None
 
     def initialize(self):
         pygame.init()
@@ -45,19 +52,19 @@ class Engine:
         self.renderer = Renderer()
         self.scene_manager = SceneManager()
 
-        # Setup ImGui (imgui_bundle)
+        # Setup ImGui with ModernGL renderer
         try:
-            from imgui_bundle import imgui
-            from imgui_bundle import PygameRenderer
-
             imgui.create_context()
             self.imgui = imgui
-            self.imgui_renderer = PygameRenderer()
-            self.logger.info("ImGui initialized")
+            self.imgui_renderer = ModernGLImGuiRenderer(self.renderer.ctx)
+            self.imgui_layer = ImGuiLayer(self)
+            self.imgui_layer.initialize()
+            self.logger.info("ImGui initialized with ModernGL renderer")
         except Exception as e:
             self.logger.warning(f"ImGui unavailable: {e}")
             self.imgui = None
             self.imgui_renderer = None
+            self.imgui_layer = None
 
         scene = Scene("Main Scene")
 
@@ -123,7 +130,13 @@ class Engine:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
+
+            # Forward events to Input system
             Input.process_event(event)
+
+            # Forward events to ImGui
+            if self.imgui_layer is not None:
+                self.imgui_layer.process_event(event)
 
     def update(self):
         # Update editor (handles camera controls, object picking, etc.)
@@ -132,8 +145,18 @@ class Engine:
         self.scene_manager.update()
 
     def render(self):
+        # Render 3D scene first (ModernGL)
         if self.scene_manager.current_scene:
             self.renderer.render(self.scene_manager.current_scene)
 
-        # Render editor UI
-        self.editor.render_ui()
+        # Render ImGui UI on top
+        if self.imgui_layer is not None and self.imgui_renderer is not None:
+            # Begin ImGui frame
+            self.imgui_layer.begin_frame()
+
+            # Render editor UI (this will call imgui functions)
+            self.editor.render_ui()
+
+            # End ImGui frame and render
+            draw_data = self.imgui_layer.end_frame()
+            self.imgui_renderer.render(draw_data)
