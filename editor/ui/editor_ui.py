@@ -34,8 +34,8 @@ class EditorUI:
             self.render_status_bar()
 
     def render_toolbar(self):
-        self.imgui.set_next_window_position(0, 0)
-        self.imgui.set_next_window_size(self.engine.width, 40)
+        self.imgui.set_next_window_pos(self.imgui.ImVec2(0, 0))
+        self.imgui.set_next_window_size(self.imgui.ImVec2(self.engine.width, 40))
         self.imgui.begin("Toolbar", True)
         self.imgui.set_window_pos((0, 0))
         self.imgui.set_window_size((self.engine.width, 40))
@@ -45,7 +45,7 @@ class EditorUI:
         # Tool buttons
         if self.tool_mode == "select":
             self.imgui.push_style_color(
-                self.imgui.Col_.color_button, 0.3, 0.5, 0.8, 1.0
+                self.imgui.Col_.button, self.imgui.ImVec4(0.3, 0.5, 0.8, 1.0)
             )
         if self.imgui.button("Select##tool_select"):
             self.tool_mode = "select"
@@ -56,7 +56,7 @@ class EditorUI:
 
         if self.tool_mode == "move":
             self.imgui.push_style_color(
-                self.imgui.Col_.color_button, 0.3, 0.5, 0.8, 1.0
+                self.imgui.Col_.button, self.imgui.ImVec4(0.3, 0.5, 0.8, 1.0)
             )
         if self.imgui.button("Move##tool_move"):
             self.tool_mode = "move"
@@ -67,7 +67,7 @@ class EditorUI:
 
         if self.tool_mode == "hand":
             self.imgui.push_style_color(
-                self.imgui.Col_.color_button, 0.3, 0.5, 0.8, 1.0
+                self.imgui.Col_.button, self.imgui.ImVec4(0.3, 0.5, 0.8, 1.0)
             )
         if self.imgui.button("Hand##tool_hand"):
             self.tool_mode = "hand"
@@ -78,7 +78,7 @@ class EditorUI:
 
         if self.tool_mode == "place":
             self.imgui.push_style_color(
-                self.imgui.Col_.color_button, 0.3, 0.5, 0.8, 1.0
+                self.imgui.Col_.button, self.imgui.ImVec4(0.3, 0.5, 0.8, 1.0)
             )
         if self.imgui.button("Place##tool_place"):
             self.tool_mode = "place"
@@ -104,15 +104,15 @@ class EditorUI:
         self.imgui.end()
 
     def render_scene_hierarchy(self):
-        self.imgui.set_next_window_position(0, 40)
-        self.imgui.set_next_window_size(250, 400)
+        self.imgui.set_next_window_pos(self.imgui.ImVec2(0, 40))
+        self.imgui.set_next_window_size(self.imgui.ImVec2(250, 400))
         self.imgui.begin("Scene Hierarchy", True)
 
         scene = self.engine.scene_manager.current_scene
         if scene:
             # Toggle scene tree
-            if self.imgui.tree_node(
-                "Game Objects", self.imgui.TreeNodeFlag.default_open
+            if self.imgui.tree_node_ex(
+                "Game Objects", self.imgui.TreeNodeFlags_.default_open
             ):
                 for obj in scene.game_objects:
                     is_selected = scene.get_selected_object() == obj
@@ -136,8 +136,10 @@ class EditorUI:
         self.imgui.end()
 
     def render_properties(self):
-        self.imgui.set_next_window_position(0, 440)
-        self.imgui.set_next_window_size(300, self.engine.height - 440)
+        self.imgui.set_next_window_pos(self.imgui.ImVec2(0, 440))
+        self.imgui.set_next_window_size(
+            self.imgui.ImVec2(300, self.engine.height - 440)
+        )
         self.imgui.begin("Properties", True)
 
         scene = self.engine.scene_manager.current_scene
@@ -148,8 +150,8 @@ class EditorUI:
                 self.imgui.separator()
 
                 # Transform section
-                if self.imgui.tree_node(
-                    "Transform", self.imgui.TreeNodeFlag.default_open
+                if self.imgui.tree_node_ex(
+                    "Transform", self.imgui.TreeNodeFlags_.default_open
                 ):
                     pos = selected.transform.position
                     rot = selected.transform.rotation
@@ -200,8 +202,8 @@ class EditorUI:
         self.imgui.end()
 
     def render_status_bar(self):
-        self.imgui.set_next_window_position(0, self.engine.height - 25)
-        self.imgui.set_next_window_size(self.engine.width, 25)
+        self.imgui.set_next_window_pos(self.imgui.ImVec2(0, self.engine.height - 25))
+        self.imgui.set_next_window_size(self.imgui.ImVec2(self.engine.width, 25))
         self.imgui.begin("Status", True)
         self.imgui.set_window_pos((0, self.engine.height - 25))
         self.imgui.set_window_size((self.engine.width, 25))
