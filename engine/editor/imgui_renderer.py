@@ -73,10 +73,10 @@ class ModernGLImGuiRenderer:
         self._ibo = None
 
         # Track OpenGL state for restoration
-        self._prev_blend_enabled = None
+        # self._prev_blend_enabled = None
         self._prev_blend_func = None
-        self._prev_depth_test_enabled = None
-        self._prev_scissor_enabled = None
+        # self._prev_depth_test_enabled = None
+        # self._prev_scissor_enabled = None
 
         self._initialize()
 
@@ -96,7 +96,7 @@ class ModernGLImGuiRenderer:
         self._vao = self.ctx.vertex_array(
             self._shader,
             [
-                (self._vbo, "2f 2f 4f", "position", "uv", "color"),
+                (self._vbo, "2f 2f 4ub", "position", "uv", "color"),
             ],
             index_buffer=self._ibo,
         )
@@ -143,6 +143,9 @@ class ModernGLImGuiRenderer:
 
         # Create ModernGL texture
         self._font_texture = self.ctx.texture((width, height), bpp, pixel_bytes)
+        self._font_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+        self._font_texture.repeat_x = False
+        self._font_texture.repeat_y = False
 
     def _update_buffers(self, draw_data):
         """
@@ -198,100 +201,87 @@ class ModernGLImGuiRenderer:
         self._ibo.write(indices.tobytes())
 
     def render(self, draw_data):
-        """
-        Render ImGui draw data using ModernGL.
-
-        Args:
-            draw_data: ImGui draw data from imgui.render()
-        """
-        if draw_data is None:
+        if not draw_data:
             return
 
-        # Save current OpenGL state
-        self._save_state()
-
-        # Setup OpenGL state for ImGui rendering
+        # --- Setup GL state (no querying!) ---
         self.ctx.enable(moderngl.BLEND)
-
-        # Disable depth test for UI (UI renders on top)
-        if moderngl.DEPTH_TEST in self.ctx.enabled:
-            self.ctx.disable(moderngl.DEPTH_TEST)
-
-        # Enable scissor testing
+        self.ctx.disable(moderngl.DEPTH_TEST)
         self.ctx.enable(moderngl.SCISSOR_TEST)
 
-        # Update buffers with new draw data
-        self._update_buffers(draw_data)
+        self.ctx.blend_func = (
+            moderngl.SRC_ALPHA,
+            moderngl.ONE_MINUS_SRC_ALPHA,
+        )
 
-        # Get IO for display settings
+        # --- Display size ---
         io = imgui.get_io()
-        display_width = io.display_size.x
-        display_height = io.display_size.y
+        display_width, display_height = io.display_size
 
         if display_width <= 0 or display_height <= 0:
-            self._restore_state()
             return
 
-        # Calculate scale for framebuffer to window
-        # Note: In pygame + moderngl, the framebuffer matches the window size
-        scale_x = self.ctx.screen.width / display_width if display_width > 0 else 1
-        scale_y = self.ctx.screen.height / display_height if display_height > 0 else 1
-
-        # Create orthographic projection matrix
-        # Flip Y axis (ImGui uses top-left origin, OpenGL uses bottom-left)
+        # --- Projection matrix ---
         projection = np.array(
             [
                 [2.0 / display_width, 0.0, 0.0, 0.0],
-                [0.0, 2.0 / -display_height, 0.0, 0.0],
+                [0.0, -2.0 / display_height, 0.0, 0.0],
                 [0.0, 0.0, -1.0, 0.0],
                 [-1.0, 1.0, 0.0, 1.0],
             ],
             dtype="f4",
         )
 
-        # Bind texture
-        self._font_texture.use(location=0)
-
-        # Set projection uniform
         self._shader["projection"].write(projection.tobytes())
 
-        # Track current index position
-        index_offset = 0
+        # Bind font texture
+        self._font_texture.use(0)
 
-        # Render each draw list
+        # --- Render draw lists ---
         for draw_list in draw_data.cmd_lists:
+
+            # Upload buffers directly (IMPORTANT FIX)
+            vtx_buffer = np.frombuffer(draw_list.vtx_buffer_data, dtype=np.uint8)
+            idx_buffer = np.frombuffer(draw_list.idx_buffer_data, dtype=np.uint8)
+
+            self._vbo.orphan(len(vtx_buffer))
+            self._vbo.write(vtx_buffer)
+
+            self._ibo.orphan(len(idx_buffer))
+            self._ibo.write(idx_buffer)
+
+            idx_offset = 0
+
             for cmd in draw_list.cmd_buffer:
-                # Set scissor rect (convert to OpenGL coordinates)
-                # ImGui: (x, y) from top-left, y increases downward
-                # OpenGL: (x, y) from bottom-left, y increases upward
-                scissor_x = int(cmd.clip_rect.x * scale_x)
-                scissor_y = int((display_height - cmd.clip_rect.w) * scale_y)
-                scissor_w = int((cmd.clip_rect.z - cmd.clip_rect.x) * scale_x)
-                scissor_h = int((cmd.clip_rect.w - cmd.clip_rect.y) * scale_y)
+                x, y, z, w = cmd.clip_rect
 
-                self.ctx.scissor = (scissor_x, scissor_y, scissor_w, scissor_h)
-
-                # Render the draw command
-                # We need to render from index_offset to index_offset + cmd.elem_count
-                self._vao.render(
-                    moderngl.TRIANGLES,
-                    vertices=cmd.elem_count,
-                    index_array=slice(index_offset, index_offset + cmd.elem_count),
+                # Convert to OpenGL coords
+                self.ctx.scissor = (
+                    int(x),
+                    int(display_height - w),
+                    int(z - x),
+                    int(w - y),
                 )
 
-                index_offset += cmd.elem_count
+                self._vao.render(
+                    mode=moderngl.TRIANGLES,
+                    vertices=cmd.elem_count,
+                    first=idx_offset,
+                )
 
-        # Restore OpenGL state
-        self._restore_state()
+                idx_offset += cmd.elem_count
 
-    def _save_state(self):
-        """Save current OpenGL state."""
+        # --- Restore minimal state ---
+        self.ctx.disable(moderngl.SCISSOR_TEST)
+
+    """ def _save_state(self):
+        Save current OpenGL state.
         self._prev_blend_enabled = moderngl.BLEND in self.ctx.enabled
         self._prev_depth_test_enabled = moderngl.DEPTH_TEST in self.ctx.enabled
         self._prev_scissor_enabled = moderngl.SCISSOR_TEST in self.ctx.enabled
 
     def _restore_state(self):
-        """Restore OpenGL state."""
+        Restore OpenGL state.
         if self._prev_depth_test_enabled:
             self.ctx.enable(moderngl.DEPTH_TEST)
         else:
@@ -301,6 +291,7 @@ class ModernGLImGuiRenderer:
             self.ctx.disable(moderngl.SCISSOR_TEST)
 
         # Note: We leave blend enabled as it's typically desired for 3D rendering
+ """
 
 
 # Import moderngl for state checking
