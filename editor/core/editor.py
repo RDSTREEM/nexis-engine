@@ -31,31 +31,37 @@ class Editor:
         if not scene:
             return
 
-        # Handle tool switching
-        if Input.get_action_down("tool_select"):
-            self.tool_mode = "select"
-            self.ui.set_tool_mode("select")
-        elif Input.get_action_down("tool_move"):
-            self.tool_mode = "move"
-            self.ui.set_tool_mode("move")
-        elif Input.get_action_down("tool_hand"):
-            self.tool_mode = "hand"
-            self.ui.set_tool_mode("hand")
-        elif Input.get_action_down("tool_place"):
-            self.tool_mode = "place"
-            self.ui.set_tool_mode("place")
+        # Prevent movement/game input if ImGui wants to capture input
+        io = self.engine.imgui.get_io() if self.engine.imgui else None
+        block_keyboard = io.want_capture_keyboard if io else False
+        block_mouse = io.want_capture_mouse if io else False
 
-        # Update camera controller with current tool mode
-        if self.camera_controller:
+        # Handle tool switching (only if ImGui doesn't want keyboard)
+        if not block_keyboard:
+            if Input.get_action_down("tool_select"):
+                self.tool_mode = "select"
+                self.ui.set_tool_mode("select")
+            elif Input.get_action_down("tool_move"):
+                self.tool_mode = "move"
+                self.ui.set_tool_mode("move")
+            elif Input.get_action_down("tool_hand"):
+                self.tool_mode = "hand"
+                self.ui.set_tool_mode("hand")
+            elif Input.get_action_down("tool_place"):
+                self.tool_mode = "place"
+                self.ui.set_tool_mode("place")
+
+        # Update camera controller with current tool mode (only if ImGui doesn't want keyboard or mouse)
+        if self.camera_controller and not block_keyboard and not block_mouse:
             self.camera_controller.update(self.tool_mode)
 
-        # Handle input actions
-        if Input.get_action_down("toggle_ui"):
+        # Handle input actions (only if ImGui doesn't want keyboard)
+        if not block_keyboard and Input.get_action_down("toggle_ui"):
             self.ui.toggle_ui()
 
-        # Handle mouse interactions based on tool mode
+        # Handle mouse interactions based on tool mode (only if ImGui doesn't want mouse)
         camera = scene.get_active_camera()
-        if camera:
+        if camera and not block_mouse:
             screen_pos = Input.get_mouse_position()
 
             if self.tool_mode == "select":
