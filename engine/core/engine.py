@@ -53,18 +53,18 @@ class Engine:
         self.scene_manager = SceneManager()
 
         # Setup ImGui with ModernGL renderer
-        try:
-            imgui.create_context()
-            self.imgui = imgui
-            self.imgui_renderer = ModernGLImGuiRenderer(self.renderer.ctx)
-            self.imgui_layer = ImGuiLayer(self)
-            self.imgui_layer.initialize()
-            self.logger.info("ImGui initialized with ModernGL renderer")
-        except Exception as e:
-            self.logger.warning(f"ImGui unavailable: {e}")
-            self.imgui = None
-            self.imgui_renderer = None
-            self.imgui_layer = None
+        # try:
+        imgui.create_context()
+        self.imgui = imgui
+        self.imgui_renderer = ModernGLImGuiRenderer(self.renderer.ctx)
+        self.imgui_layer = ImGuiLayer(self)
+        self.imgui_layer.initialize()
+        self.logger.info("ImGui initialized with ModernGL renderer")
+        # except Exception as e:
+        #     self.logger.warning(f"ImGui unavailable: {e}")
+        self.imgui = None
+        self.imgui_renderer = None
+        self.imgui_layer = None
 
         scene = Scene("Main Scene")
 

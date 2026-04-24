@@ -96,7 +96,7 @@ class ModernGLImGuiRenderer:
         self._vao = self.ctx.vertex_array(
             self._shader,
             [
-                (self._vbo, "2f 2f 4ub", "position", "uv", "color"),
+                (self._vbo, "2f 2f 4f", "position", "uv", "color"),
             ],
             index_buffer=self._ibo,
         )
@@ -163,7 +163,7 @@ class ModernGLImGuiRenderer:
         for draw_list in draw_data.cmd_lists:
             for draw_cmd in draw_list.cmd_buffer:
                 # Build vertex data
-                for idx in draw_cmd.elem_count:
+                for idx in range(draw_cmd.elem_count):
                     vtx_idx = draw_cmd.idx_offset + idx
                     vtx = draw_list.vtx_buffer[vtx_idx]
 
@@ -182,7 +182,7 @@ class ModernGLImGuiRenderer:
                     )
 
                 # Collect indices
-                for idx in draw_cmd.elem_count:
+                for idx in range(draw_cmd.elem_count):
                     idx_val = draw_list.idx_buffer[draw_cmd.idx_offset + idx]
                     indices.append(global_offset + idx_val)
 
@@ -192,12 +192,12 @@ class ModernGLImGuiRenderer:
         if not vertices:
             return
 
-        # Convert to numpy arrays
-        vertices = np.array(vertices, dtype="f4")
-        indices = np.array(indices, dtype="u4")
-
-        # Write to buffers
+        # Convert to numpy arrays: all floats
+        vertices = np.array(vertices, dtype=np.float32)
+        indices = np.array(indices, dtype=np.uint32)
         self._vbo.write(vertices.tobytes())
+        self._ibo.write(indices.tobytes())
+        indices = np.array(indices, dtype="u4")
         self._ibo.write(indices.tobytes())
 
     def render(self, draw_data):
