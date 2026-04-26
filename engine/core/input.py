@@ -116,4 +116,4 @@ class Input:
 
     @classmethod
     def get_mouse_scroll(cls):
-        return cls._prev_mouse_scroll
+        return cls._mouse_scroll

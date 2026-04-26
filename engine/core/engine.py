@@ -62,9 +62,9 @@ class Engine:
         self.logger.info("ImGui initialized with ModernGL renderer")
         # except Exception as e:
         #     self.logger.warning(f"ImGui unavailable: {e}")
-        self.imgui = None
-        self.imgui_renderer = None
-        self.imgui_layer = None
+        #     self.imgui = None
+        #     self.imgui_renderer = None
+        #     self.imgui_layer = None
 
         scene = Scene("Main Scene")
 

@@ -6,7 +6,7 @@ Handles font texture upload, shader management, and draw data rendering.
 """
 
 import numpy as np
-import struct
+import moderngl
 from imgui_bundle import imgui
 
 
@@ -147,58 +147,13 @@ class ModernGLImGuiRenderer:
         self._font_texture.repeat_x = False
         self._font_texture.repeat_y = False
 
-    def _update_buffers(self, draw_data):
-        """
-        Update vertex and index buffers with ImGui draw data.
-
-        Args:
-            draw_data: ImGui draw data
-        """
-        # Collect all vertices and indices
-        vertices = []
-        indices = []
-
-        global_offset = 0
-
-        for draw_list in draw_data.cmd_lists:
-            for draw_cmd in draw_list.cmd_buffer:
-                # Build vertex data
-                for idx in range(draw_cmd.elem_count):
-                    vtx_idx = draw_cmd.idx_offset + idx
-                    vtx = draw_list.vtx_buffer[vtx_idx]
-
-                    # Pack vertex: pos(2f) + uv(2f) + color(4f)
-                    vertices.extend(
-                        [
-                            vtx.pos.x,
-                            vtx.pos.y,
-                            vtx.uv.x,
-                            vtx.uv.y,
-                            vtx.col.r,
-                            vtx.col.g,
-                            vtx.col.b,
-                            vtx.col.a,
-                        ]
-                    )
-
-                # Collect indices
-                for idx in range(draw_cmd.elem_count):
-                    idx_val = draw_list.idx_buffer[draw_cmd.idx_offset + idx]
-                    indices.append(global_offset + idx_val)
-
-            # Update global offset for next draw list
-            global_offset += len(draw_list.vtx_buffer)
-
-        if not vertices:
-            return
-
-        # Convert to numpy arrays: all floats
-        vertices = np.array(vertices, dtype=np.float32)
-        indices = np.array(indices, dtype=np.uint32)
-        self._vbo.write(vertices.tobytes())
-        self._ibo.write(indices.tobytes())
-        indices = np.array(indices, dtype="u4")
-        self._ibo.write(indices.tobytes())
+    @staticmethod
+    def unpack_color(c):
+        r = (c >> 0) & 255
+        g = (c >> 8) & 255
+        b = (c >> 16) & 255
+        a = (c >> 24) & 255
+        return r / 255.0, g / 255.0, b / 255.0, a / 255.0
 
     def render(self, draw_data):
         if not draw_data:
@@ -207,7 +162,8 @@ class ModernGLImGuiRenderer:
         # --- Setup GL state (no querying!) ---
         self.ctx.enable(moderngl.BLEND)
         self.ctx.disable(moderngl.DEPTH_TEST)
-        self.ctx.enable(moderngl.SCISSOR_TEST)
+        # Use raw GL constant for SCISSOR_TEST (0x0C11) - not available in moderngl 5.x
+        self.ctx.enable(0x0C11)
 
         self.ctx.blend_func = (
             moderngl.SRC_ALPHA,
@@ -241,14 +197,28 @@ class ModernGLImGuiRenderer:
         for draw_list in draw_data.cmd_lists:
 
             # Upload buffers directly (IMPORTANT FIX)
-            vtx_buffer = np.frombuffer(draw_list.vtx_buffer_data, dtype=np.uint8)
-            idx_buffer = np.frombuffer(draw_list.idx_buffer_data, dtype=np.uint8)
+            vtx_buffer = draw_list.vtx_buffer
+            idx_buffer = draw_list.idx_buffer
+            vtx_array = np.zeros(
+                len(vtx_buffer),
+                dtype=[
+                    ("position", np.float32, 2),
+                    ("uv", np.float32, 2),
+                    ("color", np.float32, 4),
+                ],
+            )
 
-            self._vbo.orphan(len(vtx_buffer))
-            self._vbo.write(vtx_buffer)
+            for i, v in enumerate(vtx_buffer):
+                vtx_array["position"][i] = (v.pos.x, v.pos.y)
+                vtx_array["uv"][i] = (v.uv.x, v.uv.y)
+                vtx_array["color"][i] = self.unpack_color(v.col)
 
-            self._ibo.orphan(len(idx_buffer))
-            self._ibo.write(idx_buffer)
+            self._vbo.orphan()
+            self._vbo.write(vtx_array.tobytes())
+
+            idx_array = np.array(list(idx_buffer), dtype=np.uint32)
+            self._ibo.orphan()
+            self._ibo.write(idx_array.tobytes())
 
             idx_offset = 0
 
@@ -272,27 +242,4 @@ class ModernGLImGuiRenderer:
                 idx_offset += cmd.elem_count
 
         # --- Restore minimal state ---
-        self.ctx.disable(moderngl.SCISSOR_TEST)
-
-    """ def _save_state(self):
-        Save current OpenGL state.
-        self._prev_blend_enabled = moderngl.BLEND in self.ctx.enabled
-        self._prev_depth_test_enabled = moderngl.DEPTH_TEST in self.ctx.enabled
-        self._prev_scissor_enabled = moderngl.SCISSOR_TEST in self.ctx.enabled
-
-    def _restore_state(self):
-        Restore OpenGL state.
-        if self._prev_depth_test_enabled:
-            self.ctx.enable(moderngl.DEPTH_TEST)
-        else:
-            self.ctx.disable(moderngl.DEPTH_TEST)
-
-        if not self._prev_scissor_enabled:
-            self.ctx.disable(moderngl.SCISSOR_TEST)
-
-        # Note: We leave blend enabled as it's typically desired for 3D rendering
- """
-
-
-# Import moderngl for state checking
-import moderngl
+        self.ctx.disable(0x0C11)  # SCISSOR_TEST

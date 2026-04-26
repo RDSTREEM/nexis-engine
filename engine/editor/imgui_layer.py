@@ -171,19 +171,18 @@ class ImGuiLayer:
         elif event_type == pygame.KEYDOWN:
             key = self._map_key(event.key)
             if key is not None:
-                io.keys_down[key] = True
+                io.add_key_event(key, True)
             consumed = True
 
         elif event_type == pygame.KEYUP:
             key = self._map_key(event.key)
             if key is not None:
-                io.keys_down[key] = False
-            consumed = True
+                io.add_key_event(key, False)
+            consumed = True  # Text input
 
-        # Text input
         elif event_type == pygame.TEXTINPUT:
             for char in event.text:
-                io.input_queue.push_back(ord(char))
+                io.add_input_character(ord(char))
             consumed = True
 
         return consumed
