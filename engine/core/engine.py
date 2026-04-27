@@ -132,6 +132,19 @@ class Engine:
             if event.type == pygame.QUIT:
                 self.running = False
 
+            # Handle window resize
+            elif event.type == pygame.VIDEORESIZE:
+                self.width = event.w
+                self.height = event.h
+                # Re-apply the display mode with new size
+                pygame.display.set_mode(
+                    (self.width, self.height),
+                    pygame.OPENGL | pygame.DOUBLEBUF | pygame.RESIZABLE,
+                )
+                # Update ImGui display size
+                if self.imgui_layer is not None:
+                    self.imgui_layer.on_resize(self.width, self.height)
+
             # Forward events to Input system
             Input.process_event(event)
 

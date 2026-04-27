@@ -34,6 +34,7 @@ class EditorUI:
             self.render_status_bar()
 
     def render_toolbar(self):
+        # Use window-relative positioning that adjusts on resize
         self.imgui.set_next_window_pos(self.imgui.ImVec2(0, 0))
         self.imgui.set_next_window_size(self.imgui.ImVec2(self.engine.width, 40))
         self.imgui.begin("Toolbar", True)
@@ -105,7 +106,7 @@ class EditorUI:
 
     def render_scene_hierarchy(self):
         self.imgui.set_next_window_pos(self.imgui.ImVec2(0, 40))
-        self.imgui.set_next_window_size(self.imgui.ImVec2(250, 400))
+        self.imgui.set_next_window_size(self.imgui.ImVec2(250, self.engine.height - 40))
         self.imgui.begin("Scene Hierarchy", True)
 
         scene = self.engine.scene_manager.current_scene
@@ -136,10 +137,11 @@ class EditorUI:
         self.imgui.end()
 
     def render_properties(self):
-        self.imgui.set_next_window_pos(self.imgui.ImVec2(0, 440))
-        self.imgui.set_next_window_size(
-            self.imgui.ImVec2(300, self.engine.height - 440)
+        props_height = self.engine.height - 40
+        self.imgui.set_next_window_pos(
+            self.imgui.ImVec2(0, 40 + (self.engine.height - 40) // 2)
         )
+        self.imgui.set_next_window_size(self.imgui.ImVec2(300, props_height // 2))
         self.imgui.begin("Properties", True)
 
         scene = self.engine.scene_manager.current_scene
@@ -205,8 +207,6 @@ class EditorUI:
         self.imgui.set_next_window_pos(self.imgui.ImVec2(0, self.engine.height - 25))
         self.imgui.set_next_window_size(self.imgui.ImVec2(self.engine.width, 25))
         self.imgui.begin("Status", True)
-        self.imgui.set_window_pos((0, self.engine.height - 25))
-        self.imgui.set_window_size((self.engine.width, 25))
 
         scene = self.engine.scene_manager.current_scene
         selected = scene.get_selected_object() if scene else None

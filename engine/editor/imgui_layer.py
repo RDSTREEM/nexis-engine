@@ -5,6 +5,7 @@ A helper class that wraps ImGui frame management for clean integration
 with the engine's render loop.
 """
 
+import pygame
 from imgui_bundle import imgui
 
 
@@ -108,6 +109,21 @@ class ImGuiLayer:
 
         # Begin ImGui frame
         imgui.new_frame()
+
+    def on_resize(self, width, height):
+        """
+        Handle window resize event.
+
+        Args:
+            width: new window width
+            height: new window height
+        """
+        self.engine.width = width
+        self.engine.height = height
+
+        # Update ImGui display size
+        io = imgui.get_io()
+        io.display_size = (width, height)
 
     def end_frame(self):
         """
@@ -223,7 +239,3 @@ class ImGuiLayer:
         }
 
         return key_map.get(pygame_key)
-
-
-# Import pygame for event types
-import pygame

@@ -117,35 +117,49 @@ class ModernGLImGuiRenderer:
             font_cfg = imgui.ImFontConfig()
             font_cfg.oversample_h = 2
             font_cfg.oversample_v = 1
-            font_atlas.add_font_default(font_cfg)
+            self._font = font_atlas.add_font_default(font_cfg)
         except Exception as e:
             # Fallback: create a simple white texture
-            pass
+            self._font = None
 
         # Get the texture data after building the atlas
-        tex_data = font_atlas.tex_data
+        try:
+            # Use the correct imgui_bundle API
+            tex_width = font_atlas.tex_width
+            tex_height = font_atlas.tex_height
 
-        if tex_data is None or tex_data.width == 0:
-            # Fallback: create a simple 1x1 white texture
+            if tex_width == 0 or tex_height == 0:
+                # Fallback: create a simple 1x1 white texture
+                self._font_texture = self.ctx.texture(
+                    (1, 1), 4, bytes([255, 255, 255, 255])
+                )
+                return
+
+            # Get pixel data as numpy array
+            try:
+                pixels = font_atlas.tex_pixels_as_rgba32()
+            except Exception:
+                # Fallback: create a simple white texture
+                self._font_texture = self.ctx.texture(
+                    (1, 1), 4, bytes([255, 255, 255, 255])
+                )
+                return
+
+            # Convert to bytes (RGBA format)
+            pixel_bytes = pixels.tobytes()
+
+            # Create ModernGL texture
+            self._font_texture = self.ctx.texture(
+                (tex_width, tex_height), 4, pixel_bytes
+            )
+            self._font_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+            self._font_texture.repeat_x = False
+            self._font_texture.repeat_y = False
+        except Exception as e:
+            # Fallback: create a simple white texture
             self._font_texture = self.ctx.texture(
                 (1, 1), 4, bytes([255, 255, 255, 255])
             )
-            return
-
-        # Get pixel data as numpy array
-        pixels = tex_data.get_pixels_array()
-        width = tex_data.width
-        height = tex_data.height
-        bpp = tex_data.bytes_per_pixel
-
-        # Convert to bytes (RGBA format)
-        pixel_bytes = pixels.tobytes()
-
-        # Create ModernGL texture
-        self._font_texture = self.ctx.texture((width, height), bpp, pixel_bytes)
-        self._font_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
-        self._font_texture.repeat_x = False
-        self._font_texture.repeat_y = False
 
     @staticmethod
     def unpack_color(c):
