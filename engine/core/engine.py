@@ -42,7 +42,8 @@ class Engine:
         pygame.display.set_caption(self.title)
 
         self.window = pygame.display.set_mode(
-            (self.width, self.height), pygame.OPENGL | pygame.DOUBLEBUF
+            (self.width, self.height),
+            pygame.OPENGL | pygame.DOUBLEBUF | pygame.RESIZABLE,
         )
 
         self.clock = pygame.time.Clock()
