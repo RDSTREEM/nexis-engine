@@ -105,61 +105,30 @@ class ModernGLImGuiRenderer:
         self._create_font_texture()
 
     def _create_font_texture(self):
-        """Create and upload the ImGui font texture."""
-        # Get the IO and add default font
         io = imgui.get_io()
+        fonts = io.fonts
 
-        # Add default font using imgui_bundle's API
-        font_atlas = io.fonts
+        fonts.clear()
 
-        # Build font atlas with default font
-        try:
-            font_cfg = imgui.ImFontConfig()
-            font_cfg.oversample_h = 2
-            font_cfg.oversample_v = 1
-            self._font = font_atlas.add_font_default(font_cfg)
-        except Exception as e:
-            # Fallback: create a simple white texture
-            self._font = None
+        # Add default font
+        font_cfg = imgui.ImFontConfig()
+        font_cfg.oversample_h = 2
+        font_cfg.oversample_v = 1
 
-        # Get the texture data after building the atlas
-        try:
-            # Use the correct imgui_bundle API
-            tex_width = font_atlas.tex_width
-            tex_height = font_atlas.tex_height
+        fonts.add_font_default(font_cfg)
 
-            if tex_width == 0 or tex_height == 0:
-                # Fallback: create a simple 1x1 white texture
-                self._font_texture = self.ctx.texture(
-                    (1, 1), 4, bytes([255, 255, 255, 255])
-                )
-                return
+        # 🔥 THIS is the correct API for imgui_bundle
+        pixels, width, height = fonts.get_tex_data_as_rgba32()
 
-            # Get pixel data as numpy array
-            try:
-                pixels = font_atlas.tex_pixels_as_rgba32()
-            except Exception:
-                # Fallback: create a simple white texture
-                self._font_texture = self.ctx.texture(
-                    (1, 1), 4, bytes([255, 255, 255, 255])
-                )
-                return
+        if width == 0 or height == 0:
+            raise RuntimeError("Failed to build ImGui font atlas")
 
-            # Convert to bytes (RGBA format)
-            pixel_bytes = pixels.tobytes()
+        # Create ModernGL texture
+        self._font_texture = self.ctx.texture((width, height), 4, pixels)
+        self._font_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
 
-            # Create ModernGL texture
-            self._font_texture = self.ctx.texture(
-                (tex_width, tex_height), 4, pixel_bytes
-            )
-            self._font_texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
-            self._font_texture.repeat_x = False
-            self._font_texture.repeat_y = False
-        except Exception as e:
-            # Fallback: create a simple white texture
-            self._font_texture = self.ctx.texture(
-                (1, 1), 4, bytes([255, 255, 255, 255])
-            )
+        # 🔥 CRITICAL: assign texture id back to ImGui
+        fonts.tex_id = 0
 
     @staticmethod
     def unpack_color(c):
@@ -205,6 +174,7 @@ class ModernGLImGuiRenderer:
         self._shader["projection"].write(projection.tobytes())
 
         # Bind font texture
+        self._shader["texture0"].value = 0
         self._font_texture.use(0)
 
         # --- Render draw lists ---
@@ -257,3 +227,5 @@ class ModernGLImGuiRenderer:
 
         # --- Restore minimal state ---
         self.ctx.disable(0x0C11)  # SCISSOR_TEST
+        self.ctx.enable(moderngl.DEPTH_TEST)  # 🔥 IMPORTANT
+        self.ctx.disable(moderngl.BLEND)  # optional but cleaner

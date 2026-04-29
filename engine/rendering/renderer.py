@@ -18,7 +18,7 @@ class Renderer:
         DebugDraw.init(self.ctx)
 
     def render(self, scene):
-        self.ctx.clear(0.1, 0.1, 0.1)
+        self.ctx.clear(0.1, 0.1, 0.1, depth=1.0)
         self.render_scene(scene)
         self.render_debug(scene)
 

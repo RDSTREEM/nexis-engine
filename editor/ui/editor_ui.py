@@ -38,8 +38,6 @@ class EditorUI:
         self.imgui.set_next_window_pos(self.imgui.ImVec2(0, 0))
         self.imgui.set_next_window_size(self.imgui.ImVec2(self.engine.width, 40))
         self.imgui.begin("Toolbar", True)
-        self.imgui.set_window_pos((0, 0))
-        self.imgui.set_window_size((self.engine.width, 40))
 
         self.imgui.text("  Tools:  ")
 
@@ -107,7 +105,11 @@ class EditorUI:
     def render_scene_hierarchy(self):
         self.imgui.set_next_window_pos(self.imgui.ImVec2(0, 40))
         self.imgui.set_next_window_size(self.imgui.ImVec2(250, self.engine.height - 40))
-        self.imgui.begin("Scene Hierarchy", True)
+
+        # ? If needed for making it work
+        flags = self.imgui.WindowFlags_.no_resize | self.imgui.WindowFlags_.no_move
+
+        self.imgui.begin("Scene Hierarchy", True, flags=flags)
 
         scene = self.engine.scene_manager.current_scene
         if scene:
@@ -138,10 +140,14 @@ class EditorUI:
 
     def render_properties(self):
         props_height = self.engine.height - 40
-        self.imgui.set_next_window_pos(
+        """ self.imgui.set_next_window_pos(
             self.imgui.ImVec2(0, 40 + (self.engine.height - 40) // 2)
         )
         self.imgui.set_next_window_size(self.imgui.ImVec2(300, props_height // 2))
+        """
+
+        self.imgui.set_next_window_pos(self.imgui.ImVec2(self.engine.width - 300, 40))
+        self.imgui.set_next_window_size(self.imgui.ImVec2(300, self.engine.height - 65))
         self.imgui.begin("Properties", True)
 
         scene = self.engine.scene_manager.current_scene

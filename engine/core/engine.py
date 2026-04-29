@@ -141,6 +141,9 @@ class Engine:
                     (self.width, self.height),
                     pygame.OPENGL | pygame.DOUBLEBUF | pygame.RESIZABLE,
                 )
+
+                self.renderer.ctx.viewport = (0, 0, self.width, self.height)
+
                 # Update ImGui display size
                 if self.imgui_layer is not None:
                     self.imgui_layer.on_resize(self.width, self.height)
