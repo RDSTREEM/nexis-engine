@@ -293,12 +293,17 @@ class Renderer:
         self.fbo.use()
         self.ctx.viewport = (0, 0, width, height)
         self.ctx.enable(moderngl.DEPTH_TEST)
-        self.ctx.clear(0.1, 0.12, 0.18, 1.0)
+        self.ctx.clear(1.0, 0.0, 0.0, 1.0)
 
         self.prog["u_view"].write(view_matrix.astype("f4").T.tobytes())
         self.prog["u_projection"].write(projection_matrix.astype("f4").T.tobytes())
-        self.vao.render()
+        import sys
 
+        print("view matrix:", view_matrix, file=sys.stderr)
+        print("proj matrix:", projection_matrix, file=sys.stderr)
+        print("fbo size:", self.fbo.size, file=sys.stderr)
+        print("viewport:", self.ctx.viewport, file=sys.stderr)
+        self.vao.render()
         self.frame_count += 1
         now = time.time()
         if now - self.last_time >= 1.0:
@@ -308,6 +313,12 @@ class Renderer:
             self.last_time = now
 
         data = self.fbo.read(components=3, alignment=1)
+        print("data length:", len(data), file=sys.stderr)
+        # Check if all pixels are the background color (roughly 0.1, 0.12, 0.18)
+        import numpy as np
+
+        arr = np.frombuffer(data, dtype=np.uint8).reshape(-1, 3)
+        print("unique colors sample:", arr[::1000], file=sys.stderr)
         image = QImage(data, width, height, width * 3, QImage.Format_RGB888).mirrored(
             False, True
         )

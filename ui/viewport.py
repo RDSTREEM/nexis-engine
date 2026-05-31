@@ -37,8 +37,14 @@ class ViewportWidget(QWidget):
             width,
             height,
         )
+        if image.isNull():
+            return
         painter = QPainter(self)
-        painter.drawImage(self.rect(), image)
+        # Convert to pixmap first — direct QImage drawing on QWidget is unreliable
+        from PySide6.QtGui import QPixmap
+
+        pixmap = QPixmap.fromImage(image)
+        painter.drawPixmap(0, 0, pixmap)
         painter.end()
 
     def on_frame(self):

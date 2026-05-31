@@ -19,8 +19,8 @@ def perspective(
     proj[0, 0] = f / aspect
     proj[1, 1] = f
     proj[2, 2] = (far + near) / (near - far)
-    proj[2, 3] = (2.0 * far * near) / (near - far)
-    proj[3, 2] = -1.0
+    proj[3, 2] = (2.0 * far * near) / (near - far)
+    proj[2, 3] = -1.0
     return proj
 
 
