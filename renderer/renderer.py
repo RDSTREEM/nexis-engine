@@ -12,6 +12,7 @@ class Renderer:
         self.prog = None
         self.vbo = None
         self.vao = None
+        self.default_fbo = None
         self.last_time = time.time()
         self.frame_count = 0
 
@@ -244,7 +245,7 @@ class Renderer:
         )
 
     def init_gl(self, ctx: moderngl.Context):
-        """Called once after the OpenGL context is created by QOpenGLWidget."""
+        """Called once after QOpenGLWidget creates the GL context."""
         self.ctx = ctx
         self.prog = self.ctx.program(
             vertex_shader="""
@@ -275,8 +276,18 @@ class Renderer:
         )
         self.app.console.info("Renderer GL resources created.")
 
+    def set_default_fbo(self, fbo_id: int):
+        """Store Qt's actual framebuffer so moderngl renders into the right place."""
+        if self.ctx is not None:
+            self.default_fbo = self.ctx.detect_framebuffer(fbo_id)
+
     def is_ready(self) -> bool:
-        return self.ctx is not None and self.prog is not None and self.vao is not None
+        return (
+            self.ctx is not None
+            and self.prog is not None
+            and self.vao is not None
+            and self.default_fbo is not None
+        )
 
     def render_gl(
         self,
@@ -285,7 +296,8 @@ class Renderer:
         width: int,
         height: int,
     ) -> None:
-        """Renders directly into the QOpenGLWidget's framebuffer."""
+        """Renders directly into QOpenGLWidget's framebuffer."""
+        self.default_fbo.use()
         self.ctx.viewport = (0, 0, width, height)
         self.ctx.enable(moderngl.DEPTH_TEST)
         self.ctx.clear(0.1, 0.12, 0.18, 1.0)
@@ -293,9 +305,6 @@ class Renderer:
         self.prog["u_view"].write(view_matrix.astype("f4").T.tobytes())
         self.prog["u_projection"].write(projection_matrix.astype("f4").T.tobytes())
         self.vao.render()
-        err = self.ctx.error
-        print("GL error after render:", err)
-        print("vertex count:", len(self.vertices) // 6)
 
         self.frame_count += 1
         now = time.time()

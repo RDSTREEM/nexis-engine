@@ -1,12 +1,6 @@
-import time
-from typing import Optional
-
 import moderngl
-from PySide6.QtCore import QPoint, Qt, QTimer
-from PySide6.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
-
-from core.camera import EditorCamera
 
 
 class ViewportWidget(QOpenGLWidget):
@@ -14,83 +8,79 @@ class ViewportWidget(QOpenGLWidget):
         super().__init__()
         self.app = app
         self.setFocusPolicy(Qt.StrongFocus)
-        self.setMouseTracking(True)
+        self.ctx = None
+        self.prog = None
+        self.vao = None
 
-        self.camera = EditorCamera(self.app.console)
-        self.pressed_keys: set[int] = set()
-        self.last_mouse_pos: Optional[QPoint] = None
-        self.right_button_pressed = False
-        self.middle_button_pressed = False
-        self.mgl_ctx = None
-
-        self.frame_timer = QTimer(self)
-        self.frame_timer.timeout.connect(self.on_frame)
-        self.frame_timer.start(16)
-        self.last_frame_time = time.time()
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update)
+        self.timer.start(16)
 
     def initializeGL(self):
-        self.mgl_ctx = moderngl.create_context()
-        self.app.renderer.init_gl(self.mgl_ctx)
-        self.app.console.info("OpenGL context initialized in viewport.")
+        self.ctx = moderngl.create_context()
 
-    def resizeGL(self, width: int, height: int):
-        if self.mgl_ctx:
-            self.mgl_ctx.viewport = (0, 0, width, height)
+        self.prog = self.ctx.program(
+            vertex_shader="""
+                #version 330
+                in vec2 in_vert;
+                in vec3 in_color;
+                out vec3 v_color;
+                void main() {
+                    gl_Position = vec4(in_vert, 0.0, 1.0);
+                    v_color = in_color;
+                }
+            """,
+            fragment_shader="""
+                #version 330
+                in vec3 v_color;
+                out vec4 f_color;
+                void main() {
+                    f_color = vec4(v_color, 1.0);
+                }
+            """,
+        )
+
+        # A single triangle in NDC — should fill roughly half the screen
+        import numpy as np
+
+        vertices = np.array(
+            [
+                # x,    y,    r,    g,    b
+                0.0,
+                0.8,
+                1.0,
+                0.0,
+                0.0,
+                -0.8,
+                -0.8,
+                0.0,
+                1.0,
+                0.0,
+                0.8,
+                -0.8,
+                0.0,
+                0.0,
+                1.0,
+            ],
+            dtype="f4",
+        )
+
+        vbo = self.ctx.buffer(vertices.tobytes())
+        self.vao = self.ctx.vertex_array(
+            self.prog,
+            [(vbo, "2f 3f", "in_vert", "in_color")],
+        )
+        self.app.console.info("ViewportWidget: GL initialized, triangle ready.")
 
     def paintGL(self):
-        width = max(1, self.width())
-        height = max(1, self.height())
-        self.camera.update_matrices(width / height)
-        if self.mgl_ctx and self.app.renderer.is_ready():
-            self.app.renderer.render_gl(
-                self.camera.view_matrix,
-                self.camera.projection_matrix,
-                width,
-                height,
-            )
-
-    def on_frame(self):
-        now = time.time()
-        delta_time = min(0.033, now - self.last_frame_time)
-        self.last_frame_time = now
-        self.camera.update(self.pressed_keys, delta_time)
-        self.update()
-
-    def mousePressEvent(self, event: QMouseEvent) -> None:
-        self.last_mouse_pos = event.position().toPoint()
-        if event.button() == Qt.RightButton:
-            self.right_button_pressed = True
-            self.setCursor(Qt.ClosedHandCursor)
-        elif event.button() == Qt.MiddleButton:
-            self.middle_button_pressed = True
-            self.setCursor(Qt.SizeAllCursor)
-
-    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if event.button() == Qt.RightButton:
-            self.right_button_pressed = False
-        elif event.button() == Qt.MiddleButton:
-            self.middle_button_pressed = False
-        self.setCursor(Qt.ArrowCursor)
-
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        if self.last_mouse_pos is None:
-            self.last_mouse_pos = event.position().toPoint()
+        if self.ctx is None:
             return
-        current_pos = event.position().toPoint()
-        delta = current_pos - self.last_mouse_pos
-        self.last_mouse_pos = current_pos
-        if self.right_button_pressed:
-            self.camera.orbit(delta.x(), delta.y())
-        elif self.middle_button_pressed:
-            self.camera.pan(delta.x(), delta.y())
+        fbo = self.ctx.detect_framebuffer(self.defaultFramebufferObject())
+        fbo.use()
+        self.ctx.viewport = (0, 0, self.width(), self.height())
+        self.ctx.clear(0.1, 0.12, 0.18, 1.0)
+        self.vao.render(moderngl.TRIANGLES)
 
-    def wheelEvent(self, event: QWheelEvent) -> None:
-        self.camera.zoom(event.angleDelta().y() / 120.0)
-
-    def keyPressEvent(self, event: QKeyEvent) -> None:
-        self.pressed_keys.add(event.key())
-        super().keyPressEvent(event)
-
-    def keyReleaseEvent(self, event: QKeyEvent) -> None:
-        self.pressed_keys.discard(event.key())
-        super().keyReleaseEvent(event)
+    def resizeGL(self, w, h):
+        if self.ctx:
+            self.ctx.viewport = (0, 0, w, h)
