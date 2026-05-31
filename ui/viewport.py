@@ -1,51 +1,53 @@
 import time
 from typing import Optional
 
+import moderngl
 from PySide6.QtCore import QPoint, Qt, QTimer
-from PySide6.QtGui import QImage, QKeyEvent, QMouseEvent, QPainter, QWheelEvent
-from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
+from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
 from core.camera import EditorCamera
 
 
-class ViewportWidget(QWidget):
+class ViewportWidget(QOpenGLWidget):
     def __init__(self, app):
         super().__init__()
         self.app = app
-        self.setAttribute(Qt.WA_OpaquePaintEvent)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
 
-        self.renderer = self.app.renderer
         self.camera = EditorCamera(self.app.console)
         self.pressed_keys: set[int] = set()
         self.last_mouse_pos: Optional[QPoint] = None
         self.right_button_pressed = False
         self.middle_button_pressed = False
+        self.mgl_ctx = None
+
         self.frame_timer = QTimer(self)
         self.frame_timer.timeout.connect(self.on_frame)
         self.frame_timer.start(16)
         self.last_frame_time = time.time()
 
-    def paintEvent(self, event):
+    def initializeGL(self):
+        self.mgl_ctx = moderngl.create_context()
+        self.app.renderer.init_gl(self.mgl_ctx)
+        self.app.console.info("OpenGL context initialized in viewport.")
+
+    def resizeGL(self, width: int, height: int):
+        if self.mgl_ctx:
+            self.mgl_ctx.viewport = (0, 0, width, height)
+
+    def paintGL(self):
         width = max(1, self.width())
         height = max(1, self.height())
         self.camera.update_matrices(width / height)
-        image = self.renderer.render(
-            self.camera.view_matrix,
-            self.camera.projection_matrix,
-            width,
-            height,
-        )
-        if image.isNull():
-            return
-        painter = QPainter(self)
-        # Convert to pixmap first — direct QImage drawing on QWidget is unreliable
-        from PySide6.QtGui import QPixmap
-
-        pixmap = QPixmap.fromImage(image)
-        painter.drawPixmap(0, 0, pixmap)
-        painter.end()
+        if self.mgl_ctx and self.app.renderer.is_ready():
+            self.app.renderer.render_gl(
+                self.camera.view_matrix,
+                self.camera.projection_matrix,
+                width,
+                height,
+            )
 
     def on_frame(self):
         now = time.time()
@@ -74,19 +76,16 @@ class ViewportWidget(QWidget):
         if self.last_mouse_pos is None:
             self.last_mouse_pos = event.position().toPoint()
             return
-
         current_pos = event.position().toPoint()
         delta = current_pos - self.last_mouse_pos
         self.last_mouse_pos = current_pos
-
         if self.right_button_pressed:
             self.camera.orbit(delta.x(), delta.y())
         elif self.middle_button_pressed:
             self.camera.pan(delta.x(), delta.y())
 
     def wheelEvent(self, event: QWheelEvent) -> None:
-        scroll_delta = event.angleDelta().y() / 120.0
-        self.camera.zoom(scroll_delta)
+        self.camera.zoom(event.angleDelta().y() / 120.0)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         self.pressed_keys.add(event.key())
