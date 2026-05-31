@@ -1,0 +1,10 @@
+[
+  {
+    "name": "Example 2D Scene",
+    "path": "projects/example_2d.project"
+  },
+  {
+    "name": "Example 3D Scene",
+    "path": "projects/example_3d.project"
+  }
+]
