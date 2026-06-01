@@ -1,49 +1,59 @@
-from editor.editor import Editor
-from renderer.renderer import Renderer
-from scenes.scene import SceneManager
+from pathlib import Path
+
+from PySide6.QtWidgets import QFileDialog
+
+from core.console import EngineConsole
+from core.project_manager import ProjectManager
 from scripting.script_manager import ScriptManager
 from ui.main_window import MainWindow
-from core.console import EngineConsole
 
 
 class NEXISApplication:
     def __init__(self):
         self.console = EngineConsole()
-        self.scene_manager = SceneManager(self)
-        self.renderer = Renderer(self)
+        self.project = ProjectManager(self)
         self.script_manager = ScriptManager(self)
-        self.editor = Editor(self)
         self.main_window = MainWindow(self)
+
+    # convenience so viewport can do self.app.active_scene
+    @property
+    def active_scene(self):
+        return self.project.active_scene
+
+    @property
+    def project_type(self) -> str:
+        return self.project.project_type  # "2D" or "3D"
 
     def run(self) -> None:
         self.main_window.show()
         self.console.info("NEXIS engine started.")
 
-    def create_project(self, scene_type: str) -> None:
-        self.console.info(f"Creating new {scene_type} project...")
-        self.scene_manager.create_new_scene(scene_type)
-        self.editor.set_project_loaded(True)
-        self.main_window.on_project_loaded(scene_type)
-        from core.scene import Scene
-        from core.mesh_renderer import MeshRenderer
+    # ------------------------------------------------------------------
+    # Called by MainWindow
+    # ------------------------------------------------------------------
 
-        scene = Scene("Test Scene", "3D")
-        cube = scene.create_entity("Cube")
-        cube.add_component(MeshRenderer("cube"))
-        cube.transform.set_position(0, 0, 0)
-        self.active_scene = scene
+    def request_create_project(self) -> None:
+        """Opens the create-project dialog chain (handled in MainWindow)."""
+        self.main_window.on_request_create_project()
+
+    def create_project(self, folder: Path, name: str, project_type: str) -> None:
+        ok = self.project.create_project(folder, name, project_type)
+        if ok:
+            self.main_window.on_project_loaded()
 
     def open_project(self, path: str) -> None:
         if not path:
             self.console.warning("Open project cancelled.")
             return
-        self.console.info(f"Opening project: {path}")
-        self.scene_manager.load_scene(path)
-        self.editor.set_project_loaded(True)
-        self.main_window.on_project_loaded(self.scene_manager.current_scene_type)
+        ok = self.project.open_project(path)
+        if ok:
+            self.main_window.on_project_loaded()
+
+    def save_project(self) -> None:
+        self.project.save_scene()
+        self.project.save_project()
+        self.console.info("Project saved.")
 
     def close_project(self) -> None:
-        self.console.info("Closing current project and returning to the start screen.")
-        self.editor.set_project_loaded(False)
-        self.scene_manager.current_scene_type = "None"
+        self.project.close_project()
         self.main_window.show_start_screen()
