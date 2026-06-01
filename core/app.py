@@ -24,6 +24,14 @@ class NEXISApplication:
         self.scene_manager.create_new_scene(scene_type)
         self.editor.set_project_loaded(True)
         self.main_window.on_project_loaded(scene_type)
+        from core.scene import Scene
+        from core.mesh_renderer import MeshRenderer
+
+        scene = Scene("Test Scene", "3D")
+        cube = scene.create_entity("Cube")
+        cube.add_component(MeshRenderer("cube"))
+        cube.transform.set_position(0, 0, 0)
+        self.active_scene = scene
 
     def open_project(self, path: str) -> None:
         if not path:
