@@ -1,152 +1,285 @@
 from __future__ import annotations
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
+import numpy as np
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QColorDialog,
+    QComboBox,
     QDockWidget,
+    QDoubleSpinBox,
+    QFormLayout,
     QHBoxLayout,
     QInputDialog,
-    QMenu,
-    QMessageBox,
+    QLabel,
+    QLineEdit,
     QPushButton,
-    QTreeWidget,
-    QTreeWidgetItem,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
+    QFrame,
 )
 
-if TYPE_CHECKING:
-    from core.entity import Entity
+
+def _hline() -> QFrame:
+    f = QFrame()
+    f.setFrameShape(QFrame.HLine)
+    f.setFrameShadow(QFrame.Sunken)
+    return f
 
 
-class HierarchyPanel(QDockWidget):
+def _section(text: str) -> QLabel:
+    l = QLabel(text)
+    l.setStyleSheet("font-weight:bold;font-size:11px;color:#aaaaaa;")
+    return l
+
+
+class Vec3Widget(QWidget):
+    def __init__(self, label: str, value: np.ndarray, callback, parent=None):
+        super().__init__(parent)
+        self._cb = callback
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(QLabel(label))
+        self._spins = []
+        for i, axis in enumerate("XYZ"):
+            sb = QDoubleSpinBox()
+            sb.setRange(-99999, 99999)
+            sb.setDecimals(3)
+            sb.setSingleStep(0.1)
+            sb.setValue(float(value[i]))
+            sb.setPrefix(f"{axis} ")
+            sb.valueChanged.connect(lambda v, i=i: self._changed(i, v))
+            row.addWidget(sb)
+            self._spins.append(sb)
+
+    def _changed(self, idx, val):
+        self._cb(idx, val)
+
+    def refresh(self, value: np.ndarray):
+        for i, sb in enumerate(self._spins):
+            sb.blockSignals(True)
+            sb.setValue(float(value[i]))
+            sb.blockSignals(False)
+
+
+class InspectorPanel(QDockWidget):
     def __init__(self, app, parent=None):
-        super().__init__("Scene Hierarchy", parent)
+        super().__init__("Inspector", parent)
         self.app = app
+        self._entity = None
         self.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
 
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._content = QWidget()
+        self._layout = QVBoxLayout(self._content)
+        self._layout.setAlignment(Qt.AlignTop)
+        self._layout.setSpacing(4)
+        scroll.setWidget(self._content)
+        self.setWidget(scroll)
 
-        btn_row = QHBoxLayout()
-        add_btn = QPushButton("+ Entity")
-        add_btn.clicked.connect(self.on_add_entity)
-        del_btn = QPushButton("✕")
-        del_btn.setFixedWidth(28)
-        del_btn.clicked.connect(self.on_delete_entity)
-        btn_row.addWidget(add_btn)
-        btn_row.addWidget(del_btn)
-        layout.addLayout(btn_row)
-
-        self.tree = QTreeWidget()
-        self.tree.setHeaderLabel("Scene")
-        self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.tree.customContextMenuRequested.connect(self._context_menu)
-        self.tree.itemClicked.connect(self._on_item_clicked)
-        layout.addWidget(self.tree)
-
-        self.setWidget(container)
+        self._show_empty()
 
     # ------------------------------------------------------------------
 
-    def refresh(self) -> None:
-        self.tree.clear()
-        scene = self.app.active_scene
-        if scene is None:
+    def show_entity(self, entity) -> None:
+        self._entity = entity
+        self._rebuild()
+
+    def clear(self) -> None:
+        self._entity = None
+        self._rebuild()
+
+    def _clear_layout(self):
+        while self._layout.count():
+            item = self._layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+    def _show_empty(self):
+        self._clear_layout()
+        lbl = QLabel("Select an entity to inspect.")
+        lbl.setAlignment(Qt.AlignCenter)
+        lbl.setStyleSheet("color:#666;")
+        self._layout.addWidget(lbl)
+
+    def _rebuild(self):
+        if self._entity is None:
+            self._show_empty()
             return
-        root = QTreeWidgetItem([scene.name])
-        root.setData(0, Qt.UserRole, None)
-        self.tree.addTopLevelItem(root)
-        for entity in scene.entities:
-            item = QTreeWidgetItem([entity.name])
-            item.setData(0, Qt.UserRole, entity.id)
-            root.addChild(item)
-        root.setExpanded(True)
+        self._clear_layout()
+        self._build_header()
+        self._build_transform()
+        from core.transform import Transform
 
-    def highlight_entity(self, entity: Optional["Entity"]) -> None:
-        self.tree.clearSelection()
-        if entity is None:
-            return
-        root = self.tree.invisibleRootItem()
-        for i in range(root.childCount()):
-            r = root.child(i)
-            for j in range(r.childCount()):
-                child = r.child(j)
-                if child.data(0, Qt.UserRole) == entity.id:
-                    child.setSelected(True)
-                    self.tree.scrollToItem(child)
-                    return
+        for comp in self._entity.components:
+            if not isinstance(comp, Transform):
+                self._build_component(comp)
+        self._layout.addWidget(self._add_comp_btn())
 
-    # ------------------------------------------------------------------
-
-    def _on_item_clicked(self, item: QTreeWidgetItem, _col: int) -> None:
-        entity_id = item.data(0, Qt.UserRole)
-        if entity_id is None:
-            self.app.selector.clear()
-            return
-        scene = self.app.active_scene
-        if scene:
-            entity = scene.get_entity_by_id(entity_id)
-            self.app.selector.select(entity)
-
-    def _context_menu(self, pos) -> None:
-        menu = QMenu()
-        menu.addAction("Add Entity", self.on_add_entity)
-        menu.addAction("Delete Entity", self.on_delete_entity)
-        menu.addAction("Rename", self.on_rename_entity)
-        menu.exec(self.tree.mapToGlobal(pos))
-
-    # ------------------------------------------------------------------
-
-    def on_add_entity(self) -> None:
-        scene = self.app.active_scene
-        if not scene:
-            return
-        name, ok = QInputDialog.getText(
-            self, "New Entity", "Entity name:", text="Entity"
+    # --- header ---
+    def _build_header(self):
+        e = self._entity
+        row = QHBoxLayout()
+        cb = QCheckBox()
+        cb.setChecked(e.enabled)
+        cb.toggled.connect(lambda v: setattr(e, "enabled", v))
+        row.addWidget(cb)
+        ne = QLineEdit(e.name)
+        ne.textChanged.connect(
+            lambda v: (setattr(e, "name", v), self.app.main_window.hierarchy.refresh())
         )
-        if ok and name.strip():
-            scene.create_entity(name.strip())
-            self.refresh()
+        row.addWidget(ne)
+        self._layout.addLayout(row)
+        self._layout.addWidget(_hline())
 
-    def on_delete_entity(self) -> None:
-        scene = self.app.active_scene
-        if not scene:
-            return
-        item = self.tree.currentItem()
-        if not item:
-            return
-        entity_id = item.data(0, Qt.UserRole)
-        if entity_id is None:
-            return
-        entity = scene.get_entity_by_id(entity_id)
-        if not entity:
-            return
-        reply = QMessageBox.question(
-            self,
-            "Delete Entity",
-            f"Delete '{entity.name}'?",
-            QMessageBox.Yes | QMessageBox.No,
+    # --- transform ---
+    def _build_transform(self):
+        t = self._entity.transform
+        self._layout.addWidget(_section("Transform"))
+
+        def _mk(label, arr):
+            def cb(idx, val):
+                arr[idx] = val
+                t._dirty = True
+
+            return Vec3Widget(label, arr, cb)
+
+        self._layout.addWidget(_mk("Pos", t.position))
+        self._layout.addWidget(_mk("Rot", t.rotation))
+        self._layout.addWidget(_mk("Scl", t.scale))
+        self._layout.addWidget(_hline())
+
+    # --- generic component ---
+    def _build_component(self, comp):
+        from core.mesh_renderer import MeshRenderer
+        from core.sprite_renderer import SpriteRenderer
+        from core.camera_component import CameraComponent
+        import core.primitives as prim
+
+        hrow = QHBoxLayout()
+        cb = QCheckBox()
+        cb.setChecked(comp.enabled)
+        cb.toggled.connect(lambda v: setattr(comp, "enabled", v))
+        hrow.addWidget(cb)
+        hrow.addWidget(_section(type(comp).__name__))
+        hrow.addStretch()
+        x = QPushButton("✕")
+        x.setFixedSize(20, 20)
+        x.setStyleSheet("color:#f55;border:none;")
+        x.clicked.connect(lambda: self._remove(comp))
+        hrow.addWidget(x)
+        self._layout.addLayout(hrow)
+
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignRight)
+
+        if isinstance(comp, MeshRenderer):
+            combo = QComboBox()
+            combo.addItems(list(prim.PRIMITIVES.keys()))
+            combo.setCurrentText(comp.primitive)
+            combo.currentTextChanged.connect(comp.set_primitive)
+            form.addRow("Primitive", combo)
+            self._material_rows(form, comp.material)
+
+        elif isinstance(comp, SpriteRenderer):
+            self._material_rows(form, comp.material)
+            ws = QDoubleSpinBox()
+            ws.setRange(0.01, 9999)
+            ws.setValue(float(comp.size[0]))
+            hs = QDoubleSpinBox()
+            hs.setRange(0.01, 9999)
+            hs.setValue(float(comp.size[1]))
+            ws.valueChanged.connect(lambda v: comp.set_size(v, comp.size[1]))
+            hs.valueChanged.connect(lambda v: comp.set_size(comp.size[0], v))
+            form.addRow("Width", ws)
+            form.addRow("Height", hs)
+
+        elif isinstance(comp, CameraComponent):
+            pc = QComboBox()
+            pc.addItems(["perspective", "orthographic"])
+            pc.setCurrentText(comp.projection)
+            pc.currentTextChanged.connect(lambda v: setattr(comp, "projection", v))
+            form.addRow("Projection", pc)
+            fov = QDoubleSpinBox()
+            fov.setRange(10, 170)
+            fov.setValue(comp.fov)
+            fov.valueChanged.connect(lambda v: setattr(comp, "fov", v))
+            form.addRow("FOV", fov)
+            near = QDoubleSpinBox()
+            near.setRange(0.001, 100)
+            near.setDecimals(3)
+            near.setValue(comp.near)
+            near.valueChanged.connect(lambda v: setattr(comp, "near", v))
+            form.addRow("Near", near)
+            far = QDoubleSpinBox()
+            far.setRange(1, 100000)
+            far.setValue(comp.far)
+            far.valueChanged.connect(lambda v: setattr(comp, "far", v))
+            form.addRow("Far", far)
+            mc = QCheckBox()
+            mc.setChecked(comp.is_main)
+            mc.toggled.connect(lambda v: setattr(comp, "is_main", v))
+            form.addRow("Main Cam", mc)
+
+        self._layout.addLayout(form)
+        self._layout.addWidget(_hline())
+
+    def _material_rows(self, form, mat):
+        c = mat.color
+        btn = QPushButton()
+        btn.setStyleSheet(
+            f"background:rgb({int(c[0]*255)},{int(c[1]*255)},{int(c[2]*255)});"
         )
-        if reply == QMessageBox.Yes:
-            scene.remove_entity(entity)
-            self.app.selector.clear()
-            self.refresh()
 
-    def on_rename_entity(self) -> None:
-        item = self.tree.currentItem()
-        if not item:
+        def pick():
+            dlg = QColorDialog()
+            if dlg.exec():
+                q = dlg.selectedColor()
+                mat.set_color(q.redF(), q.greenF(), q.blueF(), q.alphaF())
+                btn.setStyleSheet(f"background:rgb({q.red()},{q.green()},{q.blue()});")
+
+        btn.clicked.connect(pick)
+        form.addRow("Color", btn)
+        amb = QDoubleSpinBox()
+        amb.setRange(0, 1)
+        amb.setSingleStep(0.05)
+        amb.setValue(mat.ambient)
+        amb.valueChanged.connect(lambda v: setattr(mat, "ambient", v))
+        form.addRow("Ambient", amb)
+
+    def _remove(self, comp):
+        if self._entity:
+            self._entity.remove_component(comp)
+            self._rebuild()
+
+    def _add_comp_btn(self):
+        btn = QPushButton("+ Add Component")
+        btn.clicked.connect(self._on_add)
+        return btn
+
+    def _on_add(self):
+        if not self._entity:
             return
-        entity_id = item.data(0, Qt.UserRole)
-        if entity_id is None:
+        opts = ["MeshRenderer", "SpriteRenderer", "CameraComponent"]
+        choice, ok = QInputDialog.getItem(
+            self, "Add Component", "Type:", opts, 0, False
+        )
+        if not ok:
             return
-        scene = self.app.active_scene
-        entity = scene.get_entity_by_id(entity_id) if scene else None
-        if not entity:
-            return
-        name, ok = QInputDialog.getText(self, "Rename", "New name:", text=entity.name)
-        if ok and name.strip():
-            entity.name = name.strip()
-            self.refresh()
+        from core.mesh_renderer import MeshRenderer
+        from core.sprite_renderer import SpriteRenderer
+        from core.camera_component import CameraComponent
+
+        m = {
+            "MeshRenderer": MeshRenderer,
+            "SpriteRenderer": SpriteRenderer,
+            "CameraComponent": CameraComponent,
+        }
+        cls = m.get(choice)
+        if cls:
+            self._entity.add_component(cls())
+            self._rebuild()
