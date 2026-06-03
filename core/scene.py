@@ -1,28 +1,18 @@
 from __future__ import annotations
-
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional
 import moderngl
 import numpy as np
 
 from core.entity import Entity
 from core.mesh_renderer import MeshRenderer
-from core.sprite_renderer import SpriteRenderer
+from core.sprite_renderer import SpriteRenderer, Shape2DRenderer
 from core.camera_component import CameraComponent
-
-if TYPE_CHECKING:
-    pass
 
 
 class Scene:
-    """
-    Holds all entities. Drives update and render loops.
-    The viewport calls scene.render_editor() with the editor camera matrices.
-    In play mode the app calls scene.start() / scene.update() / scene.stop().
-    """
-
     def __init__(self, name: str = "Untitled Scene", scene_type: str = "3D"):
         self.name: str = name
-        self.scene_type: str = scene_type  # "2D" or "3D"
+        self.scene_type: str = scene_type
         self._entities: List[Entity] = []
 
     # ------------------------------------------------------------------
@@ -60,7 +50,7 @@ class Scene:
         return list(self._entities)
 
     # ------------------------------------------------------------------
-    # Play mode lifecycle
+    # Lifecycle
     # ------------------------------------------------------------------
 
     def start(self) -> None:
@@ -82,32 +72,17 @@ class Scene:
     # ------------------------------------------------------------------
 
     def render_editor(
-        self,
-        ctx: moderngl.Context,
-        view: np.ndarray,
-        proj: np.ndarray,
+        self, ctx: moderngl.Context, view: np.ndarray, proj: np.ndarray
     ) -> None:
-        """Called every frame by the viewport with the editor camera matrices."""
         for entity in self._entities:
             if not entity.enabled:
                 continue
-            mr = entity.get_component(MeshRenderer)
-            if mr:
-                mr.render(ctx, view, proj)
-            sr = entity.get_component(SpriteRenderer)
-            if sr:
-                sr.render(ctx, view, proj)
+            for comp_type in (MeshRenderer, SpriteRenderer, Shape2DRenderer):
+                comp = entity.get_component(comp_type)
+                if comp:
+                    comp.render(ctx, view, proj)
 
-    def render_play(
-        self,
-        ctx: moderngl.Context,
-        width: int,
-        height: int,
-    ) -> bool:
-        """
-        Called in play mode. Finds the active CameraComponent and renders from it.
-        Returns False if no active camera found.
-        """
+    def render_play(self, ctx: moderngl.Context, width: int, height: int) -> bool:
         cam = self._find_main_camera()
         if cam is None:
             return False
@@ -139,8 +114,7 @@ class Scene:
     @classmethod
     def from_dict(cls, data: dict) -> "Scene":
         scene = cls(
-            name=data.get("name", "Untitled Scene"),
-            scene_type=data.get("scene_type", "3D"),
+            name=data.get("name", "Untitled"), scene_type=data.get("scene_type", "3D")
         )
         for e_data in data.get("entities", []):
             entity = Entity.from_dict(e_data, scene=scene)

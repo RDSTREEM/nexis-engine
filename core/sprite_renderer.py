@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from typing import Optional
 import numpy as np
 import moderngl
@@ -7,43 +6,26 @@ import moderngl
 from core.component import Component
 from core.material import Material
 from core.shader import Shader
-
-_QUAD = np.array(
-    [
-        # fmt: off
-    -0.5, -0.5,  0.0, 1.0,
-     0.5, -0.5,  1.0, 1.0,
-     0.5,  0.5,  1.0, 0.0,
-    -0.5, -0.5,  0.0, 1.0,
-     0.5,  0.5,  1.0, 0.0,
-    -0.5,  0.5,  0.0, 0.0,
-        # fmt: on
-    ],
-    dtype="f4",
-)
+import core.primitives_2d as prim2d
 
 
 class SpriteRenderer(Component):
     """
     2D sprite rendering component.
-    Uses the sprite shader (no lighting, just texture * color).
-    Assign a moderngl Texture via set_texture().
+    Uses the sprite shader (no lighting, texture * color).
+    Shape defaults to 'square' but can be any primitives_2d shape.
     """
 
-    def __init__(self, material: Optional[Material] = None):
+    def __init__(self, material: Optional[Material] = None, shape: str = "square"):
         super().__init__()
         shader = Shader.from_builtin("sprite")
         self.material = material or Material(shader, name="SpriteMaterial")
+        self.shape = shape
         self._vao: Optional[moderngl.VertexArray] = None
         self._ctx: Optional[moderngl.Context] = None
-        # pixel-space size multiplier (1 = 1 world unit)
         self.size = np.array([1.0, 1.0], dtype="f4")
-        # which region of the texture to show (x, y, w, h) in 0-1 UV space
-        self.uv_rect = np.array([0.0, 0.0, 1.0, 1.0], dtype="f4")
         self.flip_x = False
         self.flip_y = False
-
-    # ------------------------------------------------------------------
 
     def set_texture(self, texture: moderngl.Texture) -> None:
         self.material.set_texture(texture)
@@ -53,13 +35,29 @@ class SpriteRenderer(Component):
 
     def set_size(self, w: float, h: float) -> None:
         self.size[:] = (w, h)
+        self._vao = None  # rebuild with new size
 
-    # ------------------------------------------------------------------
+    def set_shape(self, shape: str) -> None:
+        if shape not in prim2d.PRIMITIVES_2D:
+            raise ValueError(
+                f"Unknown 2D shape '{shape}'. " f"Options: {list(prim2d.PRIMITIVES_2D)}"
+            )
+        self.shape = shape
+        self._vao = None
 
     def _build_vao(self, ctx: moderngl.Context) -> None:
         self._ctx = ctx
         self.material.compile(ctx)
-        vbo = ctx.buffer(_QUAD.tobytes())
+        verts = prim2d.generate_2d(self.shape)
+        # scale by size
+        verts = verts.reshape(-1, 4).copy()
+        verts[:, 0] *= self.size[0]
+        verts[:, 1] *= self.size[1]
+        if self.flip_x:
+            verts[:, 2] = 1.0 - verts[:, 2]
+        if self.flip_y:
+            verts[:, 3] = 1.0 - verts[:, 3]
+        vbo = ctx.buffer(verts.tobytes())
         self._vao = ctx.vertex_array(
             self.material.shader.program,
             [(vbo, "2f 2f", "in_position", "in_uv")],
@@ -70,24 +68,17 @@ class SpriteRenderer(Component):
             return
         if self._vao is None or self._ctx is not ctx:
             self._build_vao(ctx)
-
-        # bake size into model matrix
-        model = self.entity.transform.matrix.copy()
-        model[0, 0] *= self.size[0]
-        model[1, 1] *= self.size[1]
-
+        model = self.entity.transform.matrix
         self.material.bind(model, view, proj)
         self._vao.render(moderngl.TRIANGLES)
-
-    # ------------------------------------------------------------------
 
     def to_dict(self) -> dict:
         d = super().to_dict()
         d.update(
             {
                 "material": self.material.to_dict(),
+                "shape": self.shape,
                 "size": self.size.tolist(),
-                "uv_rect": self.uv_rect.tolist(),
                 "flip_x": self.flip_x,
                 "flip_y": self.flip_y,
             }
@@ -97,10 +88,108 @@ class SpriteRenderer(Component):
     @classmethod
     def from_dict(cls, data: dict) -> "SpriteRenderer":
         mat = Material.from_dict(data["material"]) if "material" in data else None
-        sr = cls(material=mat)
+        sr = cls(material=mat, shape=data.get("shape", "square"))
         sr.enabled = data.get("enabled", True)
         sr.size = np.array(data.get("size", [1, 1]), dtype="f4")
-        sr.uv_rect = np.array(data.get("uv_rect", [0, 0, 1, 1]), dtype="f4")
         sr.flip_x = data.get("flip_x", False)
         sr.flip_y = data.get("flip_y", False)
         return sr
+
+
+# ------------------------------------------------------------------
+# Shape2DRenderer — like SpriteRenderer but colour-only, no texture
+# Great for UI elements, debug shapes, simple game objects
+# ------------------------------------------------------------------
+
+_SHAPE_VERT = """
+#version 330
+in vec2 in_position;
+uniform mat4 u_model;
+uniform mat4 u_view;
+uniform mat4 u_proj;
+void main() {
+    gl_Position = u_proj * u_view * u_model * vec4(in_position, 0.0, 1.0);
+}
+"""
+
+_SHAPE_FRAG = """
+#version 330
+uniform vec4 u_color;
+out vec4 f_color;
+void main() { f_color = u_color; }
+"""
+
+
+class Shape2DRenderer(Component):
+    """
+    Renders a solid-colour 2D shape — no texture, no lighting.
+    Perfect for rectangles, circles, polygons as game objects.
+    """
+
+    def __init__(self, shape: str = "square", color: tuple = (1.0, 1.0, 1.0, 1.0)):
+        super().__init__()
+        self.shape = shape
+        self.color = np.array(color, dtype="f4")
+        self.size = np.array([1.0, 1.0], dtype="f4")
+        self._vao: Optional[moderngl.VertexArray] = None
+        self._prog: Optional[moderngl.Program] = None
+        self._ctx: Optional[moderngl.Context] = None
+
+    def set_shape(self, shape: str) -> None:
+        if shape not in prim2d.PRIMITIVES_2D:
+            raise ValueError(f"Unknown 2D shape '{shape}'.")
+        self.shape = shape
+        self._vao = None
+
+    def set_color(self, r: float, g: float, b: float, a: float = 1.0) -> None:
+        self.color[:] = (r, g, b, a)
+
+    def set_size(self, w: float, h: float) -> None:
+        self.size[:] = (w, h)
+        self._vao = None
+
+    def _build(self, ctx: moderngl.Context) -> None:
+        self._ctx = ctx
+        self._prog = ctx.program(
+            vertex_shader=_SHAPE_VERT,
+            fragment_shader=_SHAPE_FRAG,
+        )
+        verts = prim2d.generate_2d(self.shape).reshape(-1, 4).copy()
+        verts[:, 0] *= self.size[0]
+        verts[:, 1] *= self.size[1]
+        # only need XY
+        xy = np.ascontiguousarray(verts[:, :2])
+        vbo = ctx.buffer(xy.tobytes())
+        self._vao = ctx.vertex_array(self._prog, [(vbo, "2f", "in_position")])
+
+    def render(self, ctx: moderngl.Context, view: np.ndarray, proj: np.ndarray) -> None:
+        if not self.enabled or self.entity is None:
+            return
+        if self._vao is None or self._ctx is not ctx:
+            self._build(ctx)
+        model = self.entity.transform.matrix
+        self._prog["u_model"].write(model.T.tobytes())
+        self._prog["u_view"].write(view.T.tobytes())
+        self._prog["u_proj"].write(proj.T.tobytes())
+        self._prog["u_color"].write(self.color.tobytes())
+        self._vao.render(moderngl.TRIANGLES)
+
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        d.update(
+            {
+                "shape": self.shape,
+                "color": self.color.tolist(),
+                "size": self.size.tolist(),
+            }
+        )
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Shape2DRenderer":
+        s = cls(
+            shape=data.get("shape", "square"), color=data.get("color", [1, 1, 1, 1])
+        )
+        s.enabled = data.get("enabled", True)
+        s.size = np.array(data.get("size", [1, 1]), dtype="f4")
+        return s

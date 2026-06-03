@@ -1,45 +1,38 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import Optional
+from core.component import Component
 
-if TYPE_CHECKING:
-    from core.entity import Entity
+_REGISTRY: dict = {}
 
 
-class Component:
-    """Base class for all components attached to an Entity."""
+def _build():
+    if _REGISTRY:
+        return
+    from core.transform import Transform
+    from core.mesh_renderer import MeshRenderer
+    from core.sprite_renderer import SpriteRenderer, Shape2DRenderer
+    from core.camera_component import CameraComponent
+    from core.physics_2d import BoxCollider2D, CircleCollider2D, Rigidbody2D
+    from core.script_component import ScriptComponent
 
-    def __init__(self):
-        self.entity: "Entity | None" = None
-        self.enabled: bool = True
+    for cls in [
+        Transform,
+        MeshRenderer,
+        SpriteRenderer,
+        Shape2DRenderer,
+        CameraComponent,
+        BoxCollider2D,
+        CircleCollider2D,
+        Rigidbody2D,
+        ScriptComponent,
+    ]:
+        _REGISTRY[cls.__name__] = cls
 
-    # -- lifecycle hooks (overridden by subclasses) --
 
-    def on_attach(self) -> None:
-        """Called when this component is added to an entity."""
-
-    def on_detach(self) -> None:
-        """Called when this component is removed from an entity."""
-
-    def on_start(self) -> None:
-        """Called once when play mode begins."""
-
-    def on_update(self, delta_time: float) -> None:
-        """Called every frame in play mode."""
-
-    def on_stop(self) -> None:
-        """Called when play mode ends."""
-
-    def to_dict(self) -> dict:
-        """Serialize component state for scene saving."""
-        return {"type": self.__class__.__name__, "enabled": self.enabled}
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "Component":
-        """Deserialize component — subclasses override this."""
-        instance = cls()
-        instance.enabled = data.get("enabled", True)
-        return instance
-
-    def __repr__(self) -> str:
-        entity_name = self.entity.name if self.entity else "unattached"
-        return f"<{self.__class__.__name__} on '{entity_name}'>"
+def deserialize_component(data: dict) -> Optional[Component]:
+    _build()
+    cls = _REGISTRY.get(data.get("type", ""))
+    if cls is None:
+        print(f"[ComponentRegistry] Unknown type '{data.get('type')}' — skipping.")
+        return None
+    return cls.from_dict(data)
