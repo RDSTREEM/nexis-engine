@@ -14,7 +14,9 @@ from PySide6.QtGui import (
     QSyntaxHighlighter,
     QTextCharFormat,
     QKeySequence,
+    QShortcut,
 )
+
 from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
@@ -24,7 +26,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QWidget,
-    QShortcut,
 )
 
 # ------------------------------------------------------------------

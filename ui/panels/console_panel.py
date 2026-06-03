@@ -1,6 +1,6 @@
 from __future__ import annotations
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QColor, QTextCursor
+from PySide6.QtGui import QFont, QTextCursor
 from PySide6.QtWidgets import (
     QDockWidget,
     QHBoxLayout,
@@ -69,6 +69,12 @@ class ConsolePanel(QDockWidget):
         self._entries: list[tuple[str, str]] = []  # (level, html_line)
 
     # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def log_widget(self) -> QTextEdit:
+        """Return the raw QTextEdit so EngineConsole can write to it."""
+        return self._log
 
     def write(self, level: str, message: str) -> None:
         colour = self.COLOURS.get(level.upper(), "#dddddd")
