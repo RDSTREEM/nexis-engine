@@ -1,8 +1,3 @@
-"""
-main_window.py  — thin shell that assembles modular panels.
-All panel logic lives in ui/panels/*.
-"""
-
 from __future__ import annotations
 from pathlib import Path
 
@@ -23,6 +18,8 @@ from ui.panels.hierarchy_panel import HierarchyPanel
 from ui.panels.inspector_panel import InspectorPanel
 from ui.panels.console_panel import ConsolePanel
 from ui.panels.toolbar import ViewportToolbar
+from ui.panels.asset_browser_panel import AssetBrowserPanel
+from ui.panels.script_editor_panel import ScriptEditorPanel
 
 _DARK = """
 QMainWindow,QWidget{background:#2b2b2b;color:#ddd;}
@@ -33,7 +30,7 @@ QMenu::item:selected{background:#3c8dde;}
 QDockWidget::title{background:#1e1e1e;padding:4px;font-size:11px;color:#aaa;}
 QTreeWidget{background:#252525;border:none;color:#ddd;}
 QTreeWidget::item:selected{background:#3c8dde;color:#fff;}
-QTextEdit{background:#1a1a1a;color:#ccc;border:none;}
+QTextEdit,QPlainTextEdit{background:#1a1a1a;color:#ccc;border:none;}
 QPushButton{background:#3c3c3c;border:1px solid #555;border-radius:3px;padding:3px 8px;color:#ddd;}
 QPushButton:hover{background:#4a4a4a;}
 QPushButton:pressed{background:#2a2a2a;}
@@ -43,6 +40,9 @@ QDoubleSpinBox,QSpinBox,QLineEdit,QComboBox{background:#1e1e1e;border:1px solid 
 QScrollBar:vertical{background:#2b2b2b;width:10px;}
 QScrollBar::handle:vertical{background:#555;border-radius:5px;min-height:20px;}
 QCheckBox,QLabel{color:#ddd;}
+QTabWidget::pane{border:1px solid #444;}
+QTabBar::tab{background:#2b2b2b;color:#aaa;padding:4px 10px;border:1px solid #444;}
+QTabBar::tab:selected{background:#3c3c3c;color:#ddd;}
 """
 
 
@@ -58,7 +58,6 @@ class MainWindow(QMainWindow):
         self._build_panels()
         self._build_central()
 
-        # wire console to engine console
         self.app.console.set_ui_widget(self.console.log_widget())
         self.show_start_screen()
 
@@ -68,23 +67,19 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self) -> None:
         fm = self.menuBar().addMenu("File")
-
         a = QAction("New Project…", self)
         a.setShortcut("Ctrl+Shift+N")
         a.triggered.connect(self._on_create)
         fm.addAction(a)
-
         a = QAction("Open Project…", self)
         a.setShortcut("Ctrl+O")
         a.triggered.connect(self._on_open)
         fm.addAction(a)
-
         self._save_act = QAction("Save", self)
         self._save_act.setShortcut("Ctrl+S")
         self._save_act.setEnabled(False)
         self._save_act.triggered.connect(self.app.save_project)
         fm.addAction(self._save_act)
-
         fm.addSeparator()
         self._close_act = QAction("Close Project", self)
         self._close_act.setEnabled(False)
@@ -101,25 +96,68 @@ class MainWindow(QMainWindow):
         a.triggered.connect(lambda: self.hierarchy.on_delete_entity())
         em.addAction(a)
 
+        vm = self.menuBar().addMenu("View")
+        for label, attr in [
+            ("Scene Hierarchy", "hierarchy"),
+            ("Inspector", "inspector"),
+            ("Console", "console"),
+            ("Asset Browser", "asset_browser"),
+            ("Script Editor", "script_editor"),
+        ]:
+            a = QAction(label, self, checkable=True)
+            a.setChecked(True)
+            panel_attr = attr
+            a.triggered.connect(
+                lambda v, pa=panel_attr: getattr(self, pa).setVisible(v)
+            )
+            vm.addAction(a)
+
+        pm = self.menuBar().addMenu("Play")
+        a = QAction("▶ Play", self)
+        a.setShortcut("Ctrl+P")
+        a.triggered.connect(self._on_play)
+        pm.addAction(a)
+        a = QAction("⏸ Pause", self)
+        a.setShortcut("Ctrl+Shift+P")
+        a.triggered.connect(self._on_pause)
+        pm.addAction(a)
+        a = QAction("⏹ Stop", self)
+        a.setShortcut("Ctrl+Shift+S")
+        a.triggered.connect(self._on_stop)
+        pm.addAction(a)
+
     # ------------------------------------------------------------------
-    # Panels (docks)
+    # Panels
     # ------------------------------------------------------------------
 
     def _build_panels(self) -> None:
         self.hierarchy = HierarchyPanel(self.app, self)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.hierarchy)
-
         self.inspector = InspectorPanel(self.app, self)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.inspector)
-
         self.console = ConsolePanel(self.app, self)
-        self.addDockWidget(Qt.BottomDockWidgetArea, self.console)
+        self.asset_browser = AssetBrowserPanel(self.app, self)
+        self.script_editor = ScriptEditorPanel(self.app, self)
 
-        for dock in (self.hierarchy, self.inspector, self.console):
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.hierarchy)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.inspector)
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.console)
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.asset_browser)
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.script_editor)
+
+        self.tabifyDockWidget(self.console, self.asset_browser)
+        self.tabifyDockWidget(self.asset_browser, self.script_editor)
+        self.console.raise_()
+
+        for dock in (
+            self.hierarchy,
+            self.inspector,
+            self.console,
+            self.asset_browser,
+            self.script_editor,
+        ):
             dock.setVisible(False)
 
     # ------------------------------------------------------------------
-    # Central widget (start screen | viewport)
+    # Central
     # ------------------------------------------------------------------
 
     def _build_central(self) -> None:
@@ -132,7 +170,6 @@ class MainWindow(QMainWindow):
             lambda p: self.app.open_project(p),
         )
 
-        # viewport + toolbar wrapper
         vp_wrap = QWidget()
         vp_lay = QVBoxLayout(vp_wrap)
         vp_lay.setContentsMargins(0, 0, 0, 0)
@@ -141,7 +178,7 @@ class MainWindow(QMainWindow):
         self.toolbar = ViewportToolbar(self)
         self.viewport = ViewportWidget(self.app)
 
-        self.toolbar.sig_cam_toggle.connect(self._on_cam_toggle)
+        self.toolbar.sig_cam_toggle.connect(lambda m: self.viewport.camera.set_mode(m))
         self.toolbar.sig_play.connect(self._on_play)
         self.toolbar.sig_pause.connect(self._on_pause)
         self.toolbar.sig_stop.connect(self._on_stop)
@@ -154,11 +191,17 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.stack)
 
     # ------------------------------------------------------------------
-    # Visibility helpers
+    # Visibility
     # ------------------------------------------------------------------
 
     def _editor_mode(self, on: bool) -> None:
-        for dock in (self.hierarchy, self.inspector, self.console):
+        for dock in (
+            self.hierarchy,
+            self.inspector,
+            self.console,
+            self.asset_browser,
+            self.script_editor,
+        ):
             dock.setVisible(on)
         self._save_act.setEnabled(on)
         self._close_act.setEnabled(on)
@@ -175,49 +218,46 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"NEXIS — {self.app.project.project_name}")
 
     # ------------------------------------------------------------------
-    # Called by app after a project loads
+    # Project loaded
     # ------------------------------------------------------------------
 
     def on_project_loaded(self) -> None:
         pt = self.app.project_type
-
-        # set camera mode
         cam = self.viewport.camera
         cam.set_mode("2d" if pt == "2D" else "3d")
-
         self.toolbar.set_project_type(pt)
         self.toolbar.set_scene_name(
             self.app.active_scene.name if self.app.active_scene else ""
         )
         self.toolbar.enable_play_controls(True)
-
         self.hierarchy.refresh()
         self.inspector.clear()
+        self.asset_browser.refresh()
         self.show_viewport()
 
     # ------------------------------------------------------------------
-    # Shortcuts for panels that need main_window access
-    # (inspector_panel calls self.app.main_window.hierarchy.refresh())
+    # Helpers
     # ------------------------------------------------------------------
 
     def refresh_hierarchy(self) -> None:
         self.hierarchy.refresh()
 
     # ------------------------------------------------------------------
-    # Signals
+    # Play signals
     # ------------------------------------------------------------------
 
-    def _on_cam_toggle(self, mode: str) -> None:
-        self.viewport.camera.set_mode(mode)
-
     def _on_play(self) -> None:
-        self.app.console.info("▶ Play (Phase 6)")
+        self.app.play_mode.play()
 
     def _on_pause(self) -> None:
-        self.app.console.info("⏸ Pause (Phase 6)")
+        self.app.play_mode.pause()
 
     def _on_stop(self) -> None:
-        self.app.console.info("⏹ Stop (Phase 6)")
+        self.app.play_mode.stop()
+
+    # ------------------------------------------------------------------
+    # Dialogs
+    # ------------------------------------------------------------------
 
     def _on_create(self) -> None:
         dlg = CreateProjectDialog(self)

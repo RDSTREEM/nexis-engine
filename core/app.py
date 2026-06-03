@@ -5,6 +5,7 @@ from core.console import EngineConsole
 from core.project_manager import ProjectManager
 from assets.asset_manager import AssetManager
 from core.raycast import EntitySelector
+from core.play_mode import PlayMode
 from scripting.script_manager import ScriptManager
 from ui.main_window import MainWindow
 
@@ -19,9 +20,9 @@ class NEXISApplication:
         self.project = ProjectManager(self)
         self.assets = AssetManager(self)
         self.selector = EntitySelector(self)
+        self.play_mode = PlayMode(self)
         self.script_manager = ScriptManager(self)
 
-        # register importers
         self.assets.register_importer("mesh", import_mesh)
         self.assets.register_importer("texture", import_texture)
         self.assets.register_importer("audio", import_audio)
@@ -29,12 +30,14 @@ class NEXISApplication:
         self.main_window = MainWindow(self)
 
     # ------------------------------------------------------------------
-    # Convenience properties
-    # ------------------------------------------------------------------
 
     @property
     def active_scene(self):
         return self.project.active_scene
+
+    @active_scene.setter
+    def active_scene(self, scene):
+        self.project.active_scene = scene
 
     @property
     def project_type(self) -> str:
@@ -64,12 +67,13 @@ class NEXISApplication:
         self.console.info("Project saved.")
 
     def close_project(self) -> None:
+        if self.play_mode.is_playing:
+            self.play_mode.stop()
         self.project.close_project()
         self.selector.clear()
         self.main_window.show_start_screen()
 
     def _post_project_load(self) -> None:
-        # scan assets folder
         if self.project.project_root:
             self.assets.scan_project(self.project.project_root)
         self.main_window.on_project_loaded()

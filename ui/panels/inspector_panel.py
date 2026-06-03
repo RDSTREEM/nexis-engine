@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QFrame,
+    QFileDialog,
 )
 
 
@@ -80,7 +81,6 @@ class InspectorPanel(QDockWidget):
         self._layout.setSpacing(4)
         scroll.setWidget(self._content)
         self.setWidget(scroll)
-
         self._show_empty()
 
     # ------------------------------------------------------------------
@@ -130,7 +130,7 @@ class InspectorPanel(QDockWidget):
         row.addWidget(cb)
         ne = QLineEdit(e.name)
         ne.textChanged.connect(
-            lambda v: (setattr(e, "name", v), self.app.main_window.hierarchy.refresh())
+            lambda v: (setattr(e, "name", v), self.app.main_window.refresh_hierarchy())
         )
         row.addWidget(ne)
         self._layout.addLayout(row)
@@ -156,9 +156,12 @@ class InspectorPanel(QDockWidget):
     # --- generic component ---
     def _build_component(self, comp):
         from core.mesh_renderer import MeshRenderer
-        from core.sprite_renderer import SpriteRenderer
+        from core.sprite_renderer import SpriteRenderer, Shape2DRenderer
         from core.camera_component import CameraComponent
-        import core.primitives as prim
+        from core.physics_2d import BoxCollider2D, CircleCollider2D, Rigidbody2D
+        from core.script_component import ScriptComponent
+        import core.primitives as prim3d
+        import core.primitives_2d as prim2d
 
         hrow = QHBoxLayout()
         cb = QCheckBox()
@@ -179,24 +182,63 @@ class InspectorPanel(QDockWidget):
 
         if isinstance(comp, MeshRenderer):
             combo = QComboBox()
-            combo.addItems(list(prim.PRIMITIVES.keys()))
+            combo.addItems(list(prim3d.PRIMITIVES.keys()))
             combo.setCurrentText(comp.primitive)
             combo.currentTextChanged.connect(comp.set_primitive)
             form.addRow("Primitive", combo)
             self._material_rows(form, comp.material)
 
+        elif isinstance(comp, Shape2DRenderer):
+            combo = QComboBox()
+            combo.addItems(list(prim2d.PRIMITIVES_2D.keys()))
+            combo.setCurrentText(comp.shape)
+            combo.currentTextChanged.connect(comp.set_shape)
+            form.addRow("Shape", combo)
+            w = QDoubleSpinBox()
+            w.setRange(0.01, 9999)
+            w.setValue(float(comp.size[0]))
+            h = QDoubleSpinBox()
+            h.setRange(0.01, 9999)
+            h.setValue(float(comp.size[1]))
+            w.valueChanged.connect(lambda v: comp.set_size(v, comp.size[1]))
+            h.valueChanged.connect(lambda v: comp.set_size(comp.size[0], v))
+            form.addRow("Width", w)
+            form.addRow("Height", h)
+            # colour picker
+            btn = self._color_btn(
+                comp.color, lambda r, g, b, a: comp.set_color(r, g, b, a)
+            )
+            form.addRow("Color", btn)
+
         elif isinstance(comp, SpriteRenderer):
+            combo = QComboBox()
+            combo.addItems(list(prim2d.PRIMITIVES_2D.keys()))
+            combo.setCurrentText(comp.shape)
+            combo.currentTextChanged.connect(comp.set_shape)
+            form.addRow("Shape", combo)
             self._material_rows(form, comp.material)
-            ws = QDoubleSpinBox()
-            ws.setRange(0.01, 9999)
-            ws.setValue(float(comp.size[0]))
-            hs = QDoubleSpinBox()
-            hs.setRange(0.01, 9999)
-            hs.setValue(float(comp.size[1]))
-            ws.valueChanged.connect(lambda v: comp.set_size(v, comp.size[1]))
-            hs.valueChanged.connect(lambda v: comp.set_size(comp.size[0], v))
-            form.addRow("Width", ws)
-            form.addRow("Height", hs)
+            w = QDoubleSpinBox()
+            w.setRange(0.01, 9999)
+            w.setValue(float(comp.size[0]))
+            h = QDoubleSpinBox()
+            h.setRange(0.01, 9999)
+            h.setValue(float(comp.size[1]))
+            w.valueChanged.connect(lambda v: comp.set_size(v, comp.size[1]))
+            h.valueChanged.connect(lambda v: comp.set_size(comp.size[0], v))
+            form.addRow("Width", w)
+            form.addRow("Height", h)
+            fx = QCheckBox()
+            fx.setChecked(comp.flip_x)
+            fx.toggled.connect(
+                lambda v: setattr(comp, "flip_x", v) or setattr(comp, "_vao", None)
+            )
+            fy = QCheckBox()
+            fy.setChecked(comp.flip_y)
+            fy.toggled.connect(
+                lambda v: setattr(comp, "flip_y", v) or setattr(comp, "_vao", None)
+            )
+            form.addRow("Flip X", fx)
+            form.addRow("Flip Y", fy)
 
         elif isinstance(comp, CameraComponent):
             pc = QComboBox()
@@ -225,12 +267,93 @@ class InspectorPanel(QDockWidget):
             mc.toggled.connect(lambda v: setattr(comp, "is_main", v))
             form.addRow("Main Cam", mc)
 
+        elif isinstance(comp, BoxCollider2D):
+            ws = QDoubleSpinBox()
+            ws.setRange(0.01, 9999)
+            ws.setValue(comp.width)
+            ws.valueChanged.connect(lambda v: setattr(comp, "width", v))
+            hs = QDoubleSpinBox()
+            hs.setRange(0.01, 9999)
+            hs.setValue(comp.height)
+            hs.valueChanged.connect(lambda v: setattr(comp, "height", v))
+            trig = QCheckBox()
+            trig.setChecked(comp.is_trigger)
+            trig.toggled.connect(lambda v: setattr(comp, "is_trigger", v))
+            form.addRow("Width", ws)
+            form.addRow("Height", hs)
+            form.addRow("Trigger", trig)
+
+        elif isinstance(comp, CircleCollider2D):
+            rs = QDoubleSpinBox()
+            rs.setRange(0.001, 9999)
+            rs.setValue(comp.radius)
+            rs.valueChanged.connect(lambda v: setattr(comp, "radius", v))
+            trig = QCheckBox()
+            trig.setChecked(comp.is_trigger)
+            trig.toggled.connect(lambda v: setattr(comp, "is_trigger", v))
+            form.addRow("Radius", rs)
+            form.addRow("Trigger", trig)
+
+        elif isinstance(comp, Rigidbody2D):
+            gs = QDoubleSpinBox()
+            gs.setRange(-10, 10)
+            gs.setValue(comp.gravity_scale)
+            gs.valueChanged.connect(lambda v: setattr(comp, "gravity_scale", v))
+            dr = QDoubleSpinBox()
+            dr.setRange(0, 1)
+            dr.setSingleStep(0.01)
+            dr.setValue(comp.drag)
+            dr.valueChanged.connect(lambda v: setattr(comp, "drag", v))
+            ms = QDoubleSpinBox()
+            ms.setRange(0.001, 9999)
+            ms.setValue(comp.mass)
+            ms.valueChanged.connect(lambda v: setattr(comp, "mass", v))
+            kin = QCheckBox()
+            kin.setChecked(comp.is_kinematic)
+            kin.toggled.connect(lambda v: setattr(comp, "is_kinematic", v))
+            form.addRow("Gravity Scale", gs)
+            form.addRow("Drag", dr)
+            form.addRow("Mass", ms)
+            form.addRow("Kinematic", kin)
+
+        elif isinstance(comp, ScriptComponent):
+            path_lbl = QLabel(comp.script_path or "(none)")
+            path_lbl.setWordWrap(True)
+            path_lbl.setStyleSheet("color:#888;font-size:10px;")
+            form.addRow("Script", path_lbl)
+            browse = QPushButton("Browse…")
+
+            def _pick():
+                p, _ = QFileDialog.getOpenFileName(
+                    self,
+                    "Select Script",
+                    str(self.app.project.project_root or ""),
+                    "Scripts (*.py *.amh);;All (*)",
+                )
+                if p:
+                    comp.script_path = p
+                    path_lbl.setText(p)
+                    comp.reload()
+
+            browse.clicked.connect(_pick)
+            reload_btn = QPushButton("↺ Reload")
+            reload_btn.clicked.connect(lambda: comp.reload())
+            form.addRow("", browse)
+            form.addRow("", reload_btn)
+            if comp._error:
+                err = QLabel(comp._error[:200])
+                err.setStyleSheet("color:#f55;font-size:9px;")
+                err.setWordWrap(True)
+                form.addRow("Error", err)
+
         self._layout.addLayout(form)
         self._layout.addWidget(_hline())
 
-    def _material_rows(self, form, mat):
-        c = mat.color
+    # ------------------------------------------------------------------
+
+    def _color_btn(self, color_arr, on_change):
         btn = QPushButton()
+        c = color_arr
         btn.setStyleSheet(
             f"background:rgb({int(c[0]*255)},{int(c[1]*255)},{int(c[2]*255)});"
         )
@@ -239,10 +362,14 @@ class InspectorPanel(QDockWidget):
             dlg = QColorDialog()
             if dlg.exec():
                 q = dlg.selectedColor()
-                mat.set_color(q.redF(), q.greenF(), q.blueF(), q.alphaF())
+                on_change(q.redF(), q.greenF(), q.blueF(), q.alphaF())
                 btn.setStyleSheet(f"background:rgb({q.red()},{q.green()},{q.blue()});")
 
         btn.clicked.connect(pick)
+        return btn
+
+    def _material_rows(self, form, mat):
+        btn = self._color_btn(mat.color, lambda r, g, b, a: mat.set_color(r, g, b, a))
         form.addRow("Color", btn)
         amb = QDoubleSpinBox()
         amb.setRange(0, 1)
@@ -264,20 +391,36 @@ class InspectorPanel(QDockWidget):
     def _on_add(self):
         if not self._entity:
             return
-        opts = ["MeshRenderer", "SpriteRenderer", "CameraComponent"]
+        opts = [
+            "MeshRenderer",
+            "SpriteRenderer",
+            "Shape2DRenderer",
+            "CameraComponent",
+            "BoxCollider2D",
+            "CircleCollider2D",
+            "Rigidbody2D",
+            "ScriptComponent",
+        ]
         choice, ok = QInputDialog.getItem(
             self, "Add Component", "Type:", opts, 0, False
         )
         if not ok:
             return
         from core.mesh_renderer import MeshRenderer
-        from core.sprite_renderer import SpriteRenderer
+        from core.sprite_renderer import SpriteRenderer, Shape2DRenderer
         from core.camera_component import CameraComponent
+        from core.physics_2d import BoxCollider2D, CircleCollider2D, Rigidbody2D
+        from core.script_component import ScriptComponent
 
         m = {
             "MeshRenderer": MeshRenderer,
             "SpriteRenderer": SpriteRenderer,
+            "Shape2DRenderer": Shape2DRenderer,
             "CameraComponent": CameraComponent,
+            "BoxCollider2D": BoxCollider2D,
+            "CircleCollider2D": CircleCollider2D,
+            "Rigidbody2D": Rigidbody2D,
+            "ScriptComponent": ScriptComponent,
         }
         cls = m.get(choice)
         if cls:
