@@ -1,19 +1,15 @@
-"""
-viewport.py — QOpenGLWidget with editor camera, debug draw, raycast, input feed.
-"""
-
 from __future__ import annotations
 import time
 from typing import Optional
 
 import moderngl
 import numpy as np
-from PySide6.QtCore import QPoint, Qt, QTimer
-from PySide6.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
+from PySide6.QtCore  import QPoint, Qt, QTimer
+from PySide6.QtGui   import QKeyEvent, QMouseEvent, QWheelEvent
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
-from core.camera import EditorCamera
-from core.debug_draw import DebugDraw
+from core.camera       import EditorCamera
+from core.debug_draw   import DebugDraw
 from core.input_manager import Input
 
 
@@ -24,13 +20,13 @@ class ViewportWidget(QOpenGLWidget):
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
 
-        self.camera = EditorCamera(self.app.console, mode="3d")
+        self.camera     = EditorCamera(self.app.console, mode="3d")
         self.debug_draw = DebugDraw()
 
-        self.last_mouse: Optional[QPoint] = None
-        self.right_btn_down: bool = False
+        self.last_mouse:      Optional[QPoint] = None
+        self.right_btn_down:  bool = False
         self.middle_btn_down: bool = False
-        self.pressed_keys: set = set()
+        self.pressed_keys:    set  = set()
 
         self.last_frame = time.perf_counter()
         self.ctx: Optional[moderngl.Context] = None
@@ -52,31 +48,25 @@ class ViewportWidget(QOpenGLWidget):
         if self.ctx is None:
             return
         w, h = max(1, self.width()), max(1, self.height())
-        fbo = self.ctx.detect_framebuffer(self.defaultFramebufferObject())
+        fbo  = self.ctx.detect_framebuffer(self.defaultFramebufferObject())
         fbo.use()
         self.ctx.viewport = (0, 0, w, h)
         self.ctx.enable(moderngl.DEPTH_TEST)
 
-        scene = self.app.active_scene
+        scene     = self.app.active_scene
         play_mode = getattr(self.app, "play_mode", None)
-        is_playing = play_mode is not None and play_mode.is_playing
+        playing   = play_mode is not None and play_mode.is_playing
 
-        if is_playing:
-            # play mode — try scene camera, fall back to editor cam
+        if playing:
             rendered = scene.render_play(self.ctx, w, h) if scene else False
             if not rendered:
                 self.ctx.clear(0.05, 0.05, 0.05, 1.0)
-                lbl = "No main camera in scene"
-                self.app.console.warning(lbl) if not hasattr(self, "_warned") else None
-                self._warned = True
         else:
-            self._warned = False
             self.ctx.clear(0.1, 0.12, 0.18, 1.0)
             view, proj = self.camera.get_matrices(w, h)
             if scene:
                 scene.render_editor(self.ctx, view, proj)
 
-            # debug overlay
             self.debug_draw.begin(view, proj)
             if self.camera.mode == "3d":
                 self.debug_draw.grid(size=20, spacing=1.0)
@@ -100,7 +90,7 @@ class ViewportWidget(QOpenGLWidget):
 
     def _on_tick(self):
         now = time.perf_counter()
-        dt = min(0.05, now - self.last_frame)
+        dt  = min(0.05, now - self.last_frame)
         self.last_frame = now
 
         Input.begin_frame()
@@ -110,6 +100,13 @@ class ViewportWidget(QOpenGLWidget):
             play_mode.update()
         elif self.right_btn_down and self.pressed_keys:
             self.camera.fly(self.pressed_keys, dt)
+
+        # update FPS in toolbar
+        mw = getattr(self.app, "main_window", None)
+        if mw and hasattr(mw, "toolbar"):
+            from core.time_manager import Time
+            if play_mode and play_mode.is_playing:
+                mw.toolbar.set_fps(Time.fps)
 
         self.update()
 
@@ -123,11 +120,14 @@ class ViewportWidget(QOpenGLWidget):
         self.last_mouse = pos
         btn = event.button()
 
-        Input.on_mouse_press(int(btn))
+        # use .value to convert Qt enum → int safely on PySide6
+        Input.on_mouse_press(btn.value)
+
+        play_mode = getattr(self.app, "play_mode", None)
+        playing   = play_mode is not None and play_mode.is_playing
 
         if btn == Qt.LeftButton:
-            play_mode = getattr(self.app, "play_mode", None)
-            if not (play_mode and play_mode.is_playing):
+            if not playing:
                 self._try_pick(pos.x(), pos.y())
         elif btn == Qt.RightButton:
             self.right_btn_down = True
@@ -137,7 +137,7 @@ class ViewportWidget(QOpenGLWidget):
             self.setCursor(Qt.SizeAllCursor)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
-        Input.on_mouse_release(int(event.button()))
+        Input.on_mouse_release(event.button().value)
         if event.button() == Qt.RightButton:
             self.right_btn_down = False
         elif event.button() == Qt.MiddleButton:
@@ -202,7 +202,7 @@ class ViewportWidget(QOpenGLWidget):
         super().keyReleaseEvent(event)
 
     # ------------------------------------------------------------------
-    # Picking (editor only)
+    # Picking
     # ------------------------------------------------------------------
 
     def _try_pick(self, mx: int, my: int) -> None:
