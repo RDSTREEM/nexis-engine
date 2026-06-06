@@ -11,6 +11,7 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from core.camera       import EditorCamera
 from core.debug_draw   import DebugDraw
 from core.input_manager import Input
+from core.gizmos import Gizmo, TRANSLATE, ROTATE, SCALE
 
 
 class ViewportWidget(QOpenGLWidget):
@@ -23,6 +24,7 @@ class ViewportWidget(QOpenGLWidget):
         self.camera     = EditorCamera(self.app.console, mode="3d")
         self.debug_draw = DebugDraw()
 
+        self.gizmo      = Gizmo()
         self.last_mouse:      Optional[QPoint] = None
         self.right_btn_down:  bool = False
         self.middle_btn_down: bool = False
@@ -80,6 +82,13 @@ class ViewportWidget(QOpenGLWidget):
                 self.debug_draw.selection_box(center, half + 0.05)
             self.debug_draw.end()
 
+            # gizmo overlay
+            self.gizmo.set_entity(self.app.selector.selected_entity)
+            self.gizmo.set_2d(self.camera.mode == '2d')
+            self.debug_draw.begin(view, proj)
+            self.gizmo.draw(self.debug_draw, view, proj, w, h)
+            self.debug_draw.end()
+
     def resizeGL(self, w, h):
         if self.ctx:
             self.ctx.viewport = (0, 0, w, h)
@@ -128,7 +137,10 @@ class ViewportWidget(QOpenGLWidget):
 
         if btn == Qt.LeftButton:
             if not playing:
-                self._try_pick(pos.x(), pos.y())
+                w2, h2 = max(1,self.width()), max(1,self.height())
+                v2, p2 = self.camera.get_matrices(w2, h2)
+                if not self.gizmo.on_mouse_press(pos.x(), pos.y(), v2, p2, w2, h2):
+                    self._try_pick(pos.x(), pos.y())
         elif btn == Qt.RightButton:
             self.right_btn_down = True
             self.setCursor(Qt.ClosedHandCursor)
@@ -138,6 +150,7 @@ class ViewportWidget(QOpenGLWidget):
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         Input.on_mouse_release(event.button().value)
+        self.gizmo.on_mouse_release()
         if event.button() == Qt.RightButton:
             self.right_btn_down = False
         elif event.button() == Qt.MiddleButton:
@@ -159,7 +172,11 @@ class ViewportWidget(QOpenGLWidget):
         if play_mode and play_mode.is_playing:
             return
 
-        if self.right_btn_down and not self.pressed_keys:
+        if self.gizmo.is_dragging():
+            w2,h2 = max(1,self.width()),max(1,self.height())
+            v2,p2 = self.camera.get_matrices(w2,h2)
+            self.gizmo.on_mouse_move(pos.x(), pos.y(), v2, p2, w2, h2)
+        elif self.right_btn_down and not self.pressed_keys:
             self.camera.orbit(dx, dy)
         elif self.middle_btn_down:
             self.camera.pan(dx, dy)
@@ -186,7 +203,13 @@ class ViewportWidget(QOpenGLWidget):
             super().keyPressEvent(event)
             return
 
-        if key == Qt.Key_F:
+        if key == Qt.Key_W and not (play_mode and play_mode.is_playing):
+            self.gizmo.set_mode(TRANSLATE)
+        elif key == Qt.Key_E and not (play_mode and play_mode.is_playing):
+            self.gizmo.set_mode(ROTATE)
+        elif key == Qt.Key_R and not (play_mode and play_mode.is_playing):
+            self.gizmo.set_mode(SCALE)
+        elif key == Qt.Key_F:
             self.camera.focus_reset()
         elif key == Qt.Key_Delete:
             self.app.main_window.hierarchy.on_delete_entity()
@@ -211,4 +234,5 @@ class ViewportWidget(QOpenGLWidget):
             return
         w, h = max(1, self.width()), max(1, self.height())
         view, proj = self.camera.get_matrices(w, h)
-        self.app.selector.pick(mx, my, w, h, view, proj, scene)
+        self.app.selector.pick(mx, my, w, h, view, proj, scene,
+                               mode=self.camera.mode)
