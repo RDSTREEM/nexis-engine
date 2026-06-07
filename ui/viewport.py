@@ -4,12 +4,12 @@ from typing import Optional
 
 import moderngl
 import numpy as np
-from PySide6.QtCore  import QPoint, Qt, QTimer
-from PySide6.QtGui   import QKeyEvent, QMouseEvent, QWheelEvent
+from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
-from core.camera       import EditorCamera
-from core.debug_draw   import DebugDraw
+from core.camera import EditorCamera
+from core.debug_draw import DebugDraw
 from core.input_manager import Input
 from core.gizmos import Gizmo, TRANSLATE, ROTATE, SCALE
 
@@ -21,14 +21,14 @@ class ViewportWidget(QOpenGLWidget):
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
 
-        self.camera     = EditorCamera(self.app.console, mode="3d")
+        self.camera = EditorCamera(self.app.console, mode="3d")
         self.debug_draw = DebugDraw()
 
-        self.gizmo      = Gizmo()
-        self.last_mouse:      Optional[QPoint] = None
-        self.right_btn_down:  bool = False
+        self.gizmo = Gizmo()
+        self.last_mouse: Optional[QPoint] = None
+        self.right_btn_down: bool = False
         self.middle_btn_down: bool = False
-        self.pressed_keys:    set  = set()
+        self.pressed_keys: set = set()
 
         self.last_frame = time.perf_counter()
         self.ctx: Optional[moderngl.Context] = None
@@ -50,14 +50,14 @@ class ViewportWidget(QOpenGLWidget):
         if self.ctx is None:
             return
         w, h = max(1, self.width()), max(1, self.height())
-        fbo  = self.ctx.detect_framebuffer(self.defaultFramebufferObject())
+        fbo = self.ctx.detect_framebuffer(self.defaultFramebufferObject())
         fbo.use()
         self.ctx.viewport = (0, 0, w, h)
         self.ctx.enable(moderngl.DEPTH_TEST)
 
-        scene     = self.app.active_scene
+        scene = self.app.active_scene
         play_mode = getattr(self.app, "play_mode", None)
-        playing   = play_mode is not None and play_mode.is_playing
+        playing = play_mode is not None and play_mode.is_playing
 
         if playing:
             rendered = scene.render_play(self.ctx, w, h) if scene else False
@@ -84,7 +84,7 @@ class ViewportWidget(QOpenGLWidget):
 
             # gizmo overlay
             self.gizmo.set_entity(self.app.selector.selected_entity)
-            self.gizmo.set_2d(self.camera.mode == '2d')
+            self.gizmo.set_2d(self.camera.mode == "2d")
             self.debug_draw.begin(view, proj)
             self.gizmo.draw(self.debug_draw, view, proj, w, h)
             self.debug_draw.end()
@@ -99,7 +99,7 @@ class ViewportWidget(QOpenGLWidget):
 
     def _on_tick(self):
         now = time.perf_counter()
-        dt  = min(0.05, now - self.last_frame)
+        dt = min(0.05, now - self.last_frame)
         self.last_frame = now
 
         Input.begin_frame()
@@ -114,6 +114,7 @@ class ViewportWidget(QOpenGLWidget):
         mw = getattr(self.app, "main_window", None)
         if mw and hasattr(mw, "toolbar"):
             from core.time_manager import Time
+
             if play_mode and play_mode.is_playing:
                 mw.toolbar.set_fps(Time.fps)
 
@@ -133,11 +134,11 @@ class ViewportWidget(QOpenGLWidget):
         Input.on_mouse_press(btn.value)
 
         play_mode = getattr(self.app, "play_mode", None)
-        playing   = play_mode is not None and play_mode.is_playing
+        playing = play_mode is not None and play_mode.is_playing
 
         if btn == Qt.LeftButton:
             if not playing:
-                w2, h2 = max(1,self.width()), max(1,self.height())
+                w2, h2 = max(1, self.width()), max(1, self.height())
                 v2, p2 = self.camera.get_matrices(w2, h2)
                 if not self.gizmo.on_mouse_press(pos.x(), pos.y(), v2, p2, w2, h2):
                     self._try_pick(pos.x(), pos.y())
@@ -150,6 +151,39 @@ class ViewportWidget(QOpenGLWidget):
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         Input.on_mouse_release(event.button().value)
+        if self.gizmo.is_dragging():
+            # record transform change for undo
+            e = self.app.selector.selected_entity
+            if e is not None:
+                from core.undo_redo import SetPropertyCommand, UndoStack
+                from core.gizmos import TRANSLATE, ROTATE, SCALE
+                import numpy as np
+
+                t = e.transform
+                mode = self.gizmo.mode
+                if mode == TRANSLATE:
+                    cmd = SetPropertyCommand(
+                        t,
+                        "position",
+                        self.gizmo._drag_start_pos,
+                        t.position.copy(),
+                        f"Move '{e.name}'",
+                    )
+                elif mode == SCALE:
+                    cmd = SetPropertyCommand(
+                        t,
+                        "scale",
+                        self.gizmo._drag_start_scale,
+                        t.scale.copy(),
+                        f"Scale '{e.name}'",
+                    )
+                else:
+                    cmd = None
+                if cmd:
+                    # don't re-execute, just push to stack
+                    UndoStack._undo.append(cmd)
+                    UndoStack._redo.clear()
+                    UndoStack._notify()
         self.gizmo.on_mouse_release()
         if event.button() == Qt.RightButton:
             self.right_btn_down = False
@@ -173,8 +207,8 @@ class ViewportWidget(QOpenGLWidget):
             return
 
         if self.gizmo.is_dragging():
-            w2,h2 = max(1,self.width()),max(1,self.height())
-            v2,p2 = self.camera.get_matrices(w2,h2)
+            w2, h2 = max(1, self.width()), max(1, self.height())
+            v2, p2 = self.camera.get_matrices(w2, h2)
             self.gizmo.on_mouse_move(pos.x(), pos.y(), v2, p2, w2, h2)
         elif self.right_btn_down and not self.pressed_keys:
             self.camera.orbit(dx, dy)
@@ -234,5 +268,4 @@ class ViewportWidget(QOpenGLWidget):
             return
         w, h = max(1, self.width()), max(1, self.height())
         view, proj = self.camera.get_matrices(w, h)
-        self.app.selector.pick(mx, my, w, h, view, proj, scene,
-                               mode=self.camera.mode)
+        self.app.selector.pick(mx, my, w, h, view, proj, scene, mode=self.camera.mode)

@@ -8,23 +8,18 @@ _REGISTRY: dict = {}
 def _build():
     if _REGISTRY:
         return
-    from core.transform import Transform
-    from core.mesh_renderer import MeshRenderer
-    from core.sprite_renderer import SpriteRenderer, Shape2DRenderer
-    from core.camera_component import CameraComponent
-    from core.physics_2d import BoxCollider2D, CircleCollider2D, Rigidbody2D
-    from core.script_component import ScriptComponent
+    from core.transform          import Transform
+    from core.mesh_renderer      import MeshRenderer
+    from core.sprite_renderer    import SpriteRenderer, Shape2DRenderer
+    from core.camera_component   import CameraComponent
+    from core.physics_2d         import BoxCollider2D, CircleCollider2D, Rigidbody2D
+    from core.script_component   import ScriptComponent
+    from core.audio_source       import AudioSource
 
     for cls in [
-        Transform,
-        MeshRenderer,
-        SpriteRenderer,
-        Shape2DRenderer,
-        CameraComponent,
-        BoxCollider2D,
-        CircleCollider2D,
-        Rigidbody2D,
-        ScriptComponent,
+        Transform, MeshRenderer, SpriteRenderer, Shape2DRenderer,
+        CameraComponent, BoxCollider2D, CircleCollider2D,
+        Rigidbody2D, ScriptComponent, AudioSource,
     ]:
         _REGISTRY[cls.__name__] = cls
 

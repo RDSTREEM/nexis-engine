@@ -3,9 +3,16 @@ from typing import Optional, TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QDockWidget, QHBoxLayout, QInputDialog, QMenu,
-    QMessageBox, QPushButton, QTreeWidget, QTreeWidgetItem,
-    QVBoxLayout, QWidget,
+    QDockWidget,
+    QHBoxLayout,
+    QInputDialog,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
 if TYPE_CHECKING:
@@ -19,7 +26,7 @@ class HierarchyPanel(QDockWidget):
         self.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
 
         container = QWidget()
-        layout    = QVBoxLayout(container)
+        layout = QVBoxLayout(container)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
 
@@ -50,8 +57,11 @@ class HierarchyPanel(QDockWidget):
     # ------------------------------------------------------------------
 
     def refresh(self) -> None:
-        selected_id = (self.app.selector.selected_entity.id
-                       if self.app.selector.selected_entity else None)
+        selected_id = (
+            self.app.selector.selected_entity.id
+            if self.app.selector.selected_entity
+            else None
+        )
         self.tree.blockSignals(True)
         self.tree.clear()
         scene = self.app.active_scene
@@ -73,13 +83,17 @@ class HierarchyPanel(QDockWidget):
         item.setData(0, Qt.UserRole, entity.id)
         if not entity.enabled:
             from PySide6.QtGui import QColor
+
             item.setForeground(0, QColor("#666666"))
         if "group" in entity.tags:
-            item.setForeground(0, __import__("PySide6.QtGui", fromlist=["QColor"]).QColor("#aaddff"))
+            item.setForeground(
+                0, __import__("PySide6.QtGui", fromlist=["QColor"]).QColor("#aaddff")
+            )
         return item
 
-    def _add_children(self, parent_item: QTreeWidgetItem,
-                      parent_entity: "Entity") -> None:
+    def _add_children(
+        self, parent_item: QTreeWidgetItem, parent_entity: "Entity"
+    ) -> None:
         for child in parent_entity.children:
             child_item = self._make_item(child)
             parent_item.addChild(child_item)
@@ -91,8 +105,7 @@ class HierarchyPanel(QDockWidget):
         it = self.tree.invisibleRootItem()
         self._search_and_select(it, eid)
 
-    def _search_and_select(self, parent: QTreeWidgetItem,
-                           eid: str) -> bool:
+    def _search_and_select(self, parent: QTreeWidgetItem, eid: str) -> bool:
         for i in range(parent.childCount()):
             child = parent.child(i)
             if child.data(0, Qt.UserRole) == eid:
@@ -125,7 +138,7 @@ class HierarchyPanel(QDockWidget):
     def _sync_hierarchy_from_tree(self, tree_item, parent_entity, scene):
         for i in range(tree_item.childCount()):
             child_item = tree_item.child(i)
-            eid    = child_item.data(0, Qt.UserRole)
+            eid = child_item.data(0, Qt.UserRole)
             entity = scene.get_entity_by_id(eid) if eid else None
             if entity is None:
                 continue
@@ -152,7 +165,7 @@ class HierarchyPanel(QDockWidget):
         if eid is None:
             self.app.selector.clear()
             return
-        scene  = self.app.active_scene
+        scene = self.app.active_scene
         entity = scene.get_entity_by_id(eid) if scene else None
         self.app.selector.select(entity)
 
@@ -163,16 +176,16 @@ class HierarchyPanel(QDockWidget):
     def _context_menu(self, pos) -> None:
         item = self.tree.itemAt(pos)
         menu = QMenu()
-        menu.addAction("Add Entity",    self.on_add_entity)
+        menu.addAction("Add Entity", self.on_add_entity)
         if item and item.data(0, Qt.UserRole):
             menu.addAction("Add Child Entity", self._on_add_child)
-            menu.addAction("Group Selected",   self._on_group_selected)
-            menu.addAction("Duplicate",        self._on_duplicate)
+            menu.addAction("Group Selected", self._on_group_selected)
+            menu.addAction("Duplicate", self._on_duplicate)
             menu.addSeparator()
-            menu.addAction("Save as Prefab",   self._on_save_prefab)
+            menu.addAction("Save as Prefab", self._on_save_prefab)
             menu.addSeparator()
-            menu.addAction("Rename",           self.on_rename_entity)
-            menu.addAction("Delete Entity",    self.on_delete_entity)
+            menu.addAction("Rename", self.on_rename_entity)
+            menu.addAction("Delete Entity", self.on_delete_entity)
         menu.exec(self.tree.mapToGlobal(pos))
 
     # ------------------------------------------------------------------
@@ -184,30 +197,35 @@ class HierarchyPanel(QDockWidget):
         if not scene:
             return
         from ui.panels.entity_picker import EntityPickerDialog
-        from core.entity_templates   import TEMPLATES
+        from core.entity_templates import TEMPLATES
+
         dlg = EntityPickerDialog(self)
         if dlg.exec():
             key, name = dlg.result()
             if key in TEMPLATES:
-                fn     = TEMPLATES[key][0]
+                fn = TEMPLATES[key][0]
                 entity = fn(scene)
                 entity.name = name or entity.name
-                scene.add_entity(entity)
+                from core.undo_redo import AddEntityCommand, UndoStack
+
+                cmd = AddEntityCommand(scene, entity)
+                UndoStack.execute(cmd)
                 self.refresh()
                 self.app.selector.select(entity)
 
     def _on_add_child(self) -> None:
-        scene  = self.app.active_scene
+        scene = self.app.active_scene
         parent = self.app.selector.selected_entity
         if not scene or not parent:
             return
         from ui.panels.entity_picker import EntityPickerDialog
-        from core.entity_templates   import TEMPLATES
+        from core.entity_templates import TEMPLATES
+
         dlg = EntityPickerDialog(self)
         if dlg.exec():
             key, name = dlg.result()
             if key in TEMPLATES:
-                fn    = TEMPLATES[key][0]
+                fn = TEMPLATES[key][0]
                 child = fn(scene)
                 child.name = name or child.name
                 parent.add_child(child)
@@ -216,11 +234,12 @@ class HierarchyPanel(QDockWidget):
 
     def _on_group_selected(self) -> None:
         """Wrap selected entity in a Group parent."""
-        scene  = self.app.active_scene
+        scene = self.app.active_scene
         entity = self.app.selector.selected_entity
         if not scene or not entity:
             return
         from core.entity_templates import group_entity
+
         group = group_entity(scene, "Group")
         # insert group at same level as entity
         old_parent = entity._parent
@@ -233,15 +252,21 @@ class HierarchyPanel(QDockWidget):
         self.app.selector.select(group)
 
     def on_delete_entity(self) -> None:
-        scene  = self.app.active_scene
+        scene = self.app.active_scene
         entity = self.app.selector.selected_entity
         if not scene or not entity:
             return
         reply = QMessageBox.question(
-            self, "Delete", f"Delete '{entity.name}' and all children?",
-            QMessageBox.Yes | QMessageBox.No)
+            self,
+            "Delete",
+            f"Delete '{entity.name}' and all children?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
         if reply == QMessageBox.Yes:
-            scene.remove_entity(entity)
+            from core.undo_redo import DeleteEntityCommand, UndoStack
+
+            cmd = DeleteEntityCommand(scene, entity)
+            UndoStack.execute(cmd)
             self.app.selector.clear()
             self.refresh()
 
@@ -249,23 +274,24 @@ class HierarchyPanel(QDockWidget):
         entity = self.app.selector.selected_entity
         if not entity:
             return
-        name, ok = QInputDialog.getText(
-            self, "Rename", "New name:", text=entity.name)
+        name, ok = QInputDialog.getText(self, "Rename", "New name:", text=entity.name)
         if ok and name.strip():
             entity.name = name.strip()
             self.refresh()
 
     def _on_duplicate(self) -> None:
         import json, uuid
-        scene  = self.app.active_scene
+
+        scene = self.app.active_scene
         entity = self.app.selector.selected_entity
         if not scene or not entity:
             return
         from core.entity import Entity
-        data         = entity.to_dict()
-        data["id"]   = str(uuid.uuid4())
+
+        data = entity.to_dict()
+        data["id"] = str(uuid.uuid4())
         data["name"] = entity.name + " (copy)"
-        copy         = Entity.from_dict(data, scene=scene)
+        copy = Entity.from_dict(data, scene=scene)
         copy.transform.position[0] += 0.5
         copy.transform._dirty = True
         if entity._parent:

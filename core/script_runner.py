@@ -18,6 +18,7 @@ def _make_sandbox(app) -> dict:
     from core.input_manager import Input
     from core.time_manager import Time
     from core.event_system import Events
+    from core.scene_manager_runtime import SceneManager
     from PySide6.QtCore import Qt
 
     return {
@@ -28,6 +29,9 @@ def _make_sandbox(app) -> dict:
         "Qt": Qt,
         # scene access helper
         "get_scene": lambda: app.active_scene,
+        "SceneManager": SceneManager,
+        "Prefabs": app.prefabs,
+        "Assets": app.assets,
         # math
         "math": __import__("math"),
         "numpy": __import__("numpy"),

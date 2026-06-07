@@ -2,7 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -20,6 +20,7 @@ from ui.panels.console_panel import ConsolePanel
 from ui.panels.toolbar import ViewportToolbar
 from ui.panels.asset_browser_panel import AssetBrowserPanel
 from ui.panels.script_editor_panel import ScriptEditorPanel
+from ui.panels.scene_list_panel import SceneListPanel
 
 _DARK = """
 QMainWindow,QWidget{background:#2b2b2b;color:#ddd;}
@@ -31,18 +32,22 @@ QDockWidget::title{background:#1e1e1e;padding:4px;font-size:11px;color:#aaa;}
 QTreeWidget{background:#252525;border:none;color:#ddd;}
 QTreeWidget::item:selected{background:#3c8dde;color:#fff;}
 QTextEdit,QPlainTextEdit{background:#1a1a1a;color:#ccc;border:none;}
-QPushButton{background:#3c3c3c;border:1px solid #555;border-radius:3px;padding:3px 8px;color:#ddd;}
+QPushButton{background:#3c3c3c;border:1px solid #555;border-radius:3px;
+            padding:3px 8px;color:#ddd;}
 QPushButton:hover{background:#4a4a4a;}
 QPushButton:pressed{background:#2a2a2a;}
 QPushButton:checked{background:#3c8dde;color:#fff;}
 QPushButton:disabled{color:#555;}
-QDoubleSpinBox,QSpinBox,QLineEdit,QComboBox{background:#1e1e1e;border:1px solid #444;border-radius:2px;padding:2px 4px;color:#ddd;}
+QDoubleSpinBox,QSpinBox,QLineEdit,QComboBox{
+    background:#1e1e1e;border:1px solid #444;
+    border-radius:2px;padding:2px 4px;color:#ddd;}
 QScrollBar:vertical{background:#2b2b2b;width:10px;}
 QScrollBar::handle:vertical{background:#555;border-radius:5px;min-height:20px;}
 QCheckBox,QLabel{color:#ddd;}
 QTabWidget::pane{border:1px solid #444;}
 QTabBar::tab{background:#2b2b2b;color:#aaa;padding:4px 10px;border:1px solid #444;}
 QTabBar::tab:selected{background:#3c3c3c;color:#ddd;}
+QDialog{background:#2b2b2b;}
 """
 
 
@@ -66,36 +71,45 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_menu(self) -> None:
+        # File
         fm = self.menuBar().addMenu("File")
-        a = QAction("New Project…", self)
-        a.setShortcut("Ctrl+Shift+N")
-        a.triggered.connect(self._on_create)
-        fm.addAction(a)
-        a = QAction("Open Project…", self)
-        a.setShortcut("Ctrl+O")
-        a.triggered.connect(self._on_open)
-        fm.addAction(a)
-        self._save_act = QAction("Save", self)
-        self._save_act.setShortcut("Ctrl+S")
+        self._add_action(fm, "New Project…", "Ctrl+Shift+N", self._on_create)
+        self._add_action(fm, "Open Project…", "Ctrl+O", self._on_open)
+        self._save_act = self._add_action(fm, "Save", "Ctrl+S", self.app.save_project)
         self._save_act.setEnabled(False)
-        self._save_act.triggered.connect(self.app.save_project)
-        fm.addAction(self._save_act)
         fm.addSeparator()
-        self._close_act = QAction("Close Project", self)
+        self._add_action(fm, "Project Settings…", "", lambda: self._open_settings())
+        fm.addSeparator()
+        self._close_act = self._add_action(
+            fm, "Close Project", "", self.app.close_project
+        )
         self._close_act.setEnabled(False)
-        self._close_act.triggered.connect(self.app.close_project)
-        fm.addAction(self._close_act)
 
+        # Edit
         em = self.menuBar().addMenu("Edit")
-        a = QAction("Add Entity", self)
-        a.setShortcut("Ctrl+Shift+A")
-        a.triggered.connect(lambda: self.hierarchy.on_add_entity())
-        em.addAction(a)
-        a = QAction("Delete Entity", self)
-        a.setShortcut("Delete")
-        a.triggered.connect(lambda: self.hierarchy.on_delete_entity())
-        em.addAction(a)
+        self._undo_act = self._add_action(
+            em,
+            "Undo",
+            "Ctrl+Z",
+            lambda: (self.app.undo.undo(), self.hierarchy.refresh()),
+        )
+        self._undo_act.setEnabled(False)
+        self._redo_act = self._add_action(
+            em,
+            "Redo",
+            "Ctrl+Y",
+            lambda: (self.app.undo.redo(), self.hierarchy.refresh()),
+        )
+        self._redo_act.setEnabled(False)
+        em.addSeparator()
+        self._add_action(
+            em, "Add Entity", "Ctrl+Shift+A", lambda: self.hierarchy.on_add_entity()
+        )
+        self._add_action(
+            em, "Delete Entity", "Delete", lambda: self.hierarchy.on_delete_entity()
+        )
 
+        # View
         vm = self.menuBar().addMenu("View")
         for label, attr in [
             ("Scene Hierarchy", "hierarchy"),
@@ -103,28 +117,39 @@ class MainWindow(QMainWindow):
             ("Console", "console"),
             ("Asset Browser", "asset_browser"),
             ("Script Editor", "script_editor"),
+            ("Scenes", "scene_list"),
         ]:
             a = QAction(label, self, checkable=True)
             a.setChecked(True)
-            panel_attr = attr
-            a.triggered.connect(
-                lambda v, pa=panel_attr: getattr(self, pa).setVisible(v)
-            )
+            pa = attr
+            a.triggered.connect(lambda v, x=pa: getattr(self, x).setVisible(v))
             vm.addAction(a)
 
+        # Play
         pm = self.menuBar().addMenu("Play")
-        a = QAction("▶ Play", self)
-        a.setShortcut("Ctrl+P")
-        a.triggered.connect(self._on_play)
-        pm.addAction(a)
-        a = QAction("⏸ Pause", self)
-        a.setShortcut("Ctrl+Shift+P")
-        a.triggered.connect(self._on_pause)
-        pm.addAction(a)
-        a = QAction("⏹ Stop", self)
-        a.setShortcut("Ctrl+Shift+S")
-        a.triggered.connect(self._on_stop)
-        pm.addAction(a)
+        self._add_action(pm, "▶ Play", "Ctrl+P", self._on_play)
+        self._add_action(pm, "⏸ Pause", "Ctrl+Shift+P", self._on_pause)
+        self._add_action(pm, "⏹ Stop", "Ctrl+Shift+S", self._on_stop)
+
+        # Gizmo mode hints in menu
+        gm = self.menuBar().addMenu("Gizmo")
+        self._add_action(
+            gm, "Translate (W)", "W", lambda: self.viewport.gizmo.set_mode("translate")
+        )
+        self._add_action(
+            gm, "Rotate (E)", "E", lambda: self.viewport.gizmo.set_mode("rotate")
+        )
+        self._add_action(
+            gm, "Scale (R)", "R", lambda: self.viewport.gizmo.set_mode("scale")
+        )
+
+    def _add_action(self, menu, label, shortcut, fn) -> QAction:
+        a = QAction(label, self)
+        if shortcut:
+            a.setShortcut(QKeySequence(shortcut))
+        a.triggered.connect(fn)
+        menu.addAction(a)
+        return a
 
     # ------------------------------------------------------------------
     # Panels
@@ -136,13 +161,17 @@ class MainWindow(QMainWindow):
         self.console = ConsolePanel(self.app, self)
         self.asset_browser = AssetBrowserPanel(self.app, self)
         self.script_editor = ScriptEditorPanel(self.app, self)
+        self.scene_list = SceneListPanel(self.app, self)
 
         self.addDockWidget(Qt.LeftDockWidgetArea, self.hierarchy)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.scene_list)
         self.addDockWidget(Qt.RightDockWidgetArea, self.inspector)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.console)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.asset_browser)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.script_editor)
 
+        self.tabifyDockWidget(self.hierarchy, self.scene_list)
+        self.hierarchy.raise_()
         self.tabifyDockWidget(self.console, self.asset_browser)
         self.tabifyDockWidget(self.asset_browser, self.script_editor)
         self.console.raise_()
@@ -153,6 +182,7 @@ class MainWindow(QMainWindow):
             self.console,
             self.asset_browser,
             self.script_editor,
+            self.scene_list,
         ):
             dock.setVisible(False)
 
@@ -201,6 +231,7 @@ class MainWindow(QMainWindow):
             self.console,
             self.asset_browser,
             self.script_editor,
+            self.scene_list,
         ):
             dock.setVisible(on)
         self._save_act.setEnabled(on)
@@ -233,6 +264,7 @@ class MainWindow(QMainWindow):
         self.hierarchy.refresh()
         self.inspector.clear()
         self.asset_browser.refresh()
+        self.scene_list.refresh()
         self.show_viewport()
 
     # ------------------------------------------------------------------
@@ -242,8 +274,13 @@ class MainWindow(QMainWindow):
     def refresh_hierarchy(self) -> None:
         self.hierarchy.refresh()
 
+    def _open_settings(self) -> None:
+        from ui.panels.settings_panel import open_settings
+
+        open_settings(self.app, self)
+
     # ------------------------------------------------------------------
-    # Play signals
+    # Play
     # ------------------------------------------------------------------
 
     def _on_play(self) -> None:

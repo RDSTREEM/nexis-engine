@@ -142,8 +142,10 @@ def trigger_entity(scene, name="Trigger") -> "Entity":
 # ------------------------------------------------------------------
 
 def audio_entity(scene, name="Audio Source") -> "Entity":
-    e = _make(scene, name)
+    from core.audio_source import AudioSource
+    e  = _make(scene, name)
     e.tags.append("audio")
+    e.add_component(AudioSource())
     return e
 
 
