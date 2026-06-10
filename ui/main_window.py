@@ -1,15 +1,16 @@
+"""
+main_window.py
+BUG FIX 5: Undo/redo now also refreshes inspector.
+BUG FIX 7: Menu bar hidden on start screen, shown only in editor.
+"""
 from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
-    QDialog,
-    QFileDialog,
-    QMainWindow,
-    QStackedWidget,
-    QVBoxLayout,
-    QWidget,
+    QDialog, QFileDialog, QMainWindow,
+    QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from ui.start_screen import CreateProjectDialog, StartScreen
@@ -71,53 +72,43 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_menu(self) -> None:
-        # File
-        fm = self.menuBar().addMenu("File")
-        self._add_action(fm, "New Project…", "Ctrl+Shift+N", self._on_create)
-        self._add_action(fm, "Open Project…", "Ctrl+O", self._on_open)
-        self._save_act = self._add_action(fm, "Save", "Ctrl+S", self.app.save_project)
+        mb = self.menuBar()
+
+        fm = mb.addMenu("File")
+        self._add_action(fm, "New Project…",   "Ctrl+Shift+N", self._on_create)
+        self._add_action(fm, "Open Project…",  "Ctrl+O",       self._on_open)
+        self._save_act  = self._add_action(fm, "Save", "Ctrl+S", self.app.save_project)
         self._save_act.setEnabled(False)
         fm.addSeparator()
         self._add_action(fm, "Project Settings…", "", lambda: self._open_settings())
         fm.addSeparator()
-        self._close_act = self._add_action(
-            fm, "Close Project", "", self.app.close_project
-        )
+        self._close_act = self._add_action(fm, "Close Project", "", self.app.close_project)
         self._close_act.setEnabled(False)
 
-        # Edit
-        em = self.menuBar().addMenu("Edit")
-        self._undo_act = self._add_action(
-            em,
-            "Undo",
-            "Ctrl+Z",
-            lambda: (self.app.undo.undo(), self.hierarchy.refresh()),
-        )
+        em = mb.addMenu("Edit")
+        # BUG FIX 5: undo/redo also refresh inspector
+        self._undo_act = self._add_action(em, "Undo", "Ctrl+Z",
+            lambda: (self.app.undo.undo(),
+                     self.hierarchy.refresh(),
+                     self._refresh_inspector_after_undo()))
         self._undo_act.setEnabled(False)
-        self._redo_act = self._add_action(
-            em,
-            "Redo",
-            "Ctrl+Y",
-            lambda: (self.app.undo.redo(), self.hierarchy.refresh()),
-        )
+        self._redo_act = self._add_action(em, "Redo", "Ctrl+Y",
+            lambda: (self.app.undo.redo(),
+                     self.hierarchy.refresh(),
+                     self._refresh_inspector_after_undo()))
         self._redo_act.setEnabled(False)
         em.addSeparator()
-        self._add_action(
-            em, "Add Entity", "Ctrl+Shift+A", lambda: self.hierarchy.on_add_entity()
-        )
-        self._add_action(
-            em, "Delete Entity", "Delete", lambda: self.hierarchy.on_delete_entity()
-        )
+        self._add_action(em, "Add Entity",    "Ctrl+Shift+A", lambda: self.hierarchy.on_add_entity())
+        self._add_action(em, "Delete Entity", "Delete",       lambda: self.hierarchy.on_delete_entity())
 
-        # View
-        vm = self.menuBar().addMenu("View")
+        vm = mb.addMenu("View")
         for label, attr in [
             ("Scene Hierarchy", "hierarchy"),
-            ("Inspector", "inspector"),
-            ("Console", "console"),
-            ("Asset Browser", "asset_browser"),
-            ("Script Editor", "script_editor"),
-            ("Scenes", "scene_list"),
+            ("Inspector",       "inspector"),
+            ("Console",         "console"),
+            ("Asset Browser",   "asset_browser"),
+            ("Script Editor",   "script_editor"),
+            ("Scenes",          "scene_list"),
         ]:
             a = QAction(label, self, checkable=True)
             a.setChecked(True)
@@ -125,23 +116,18 @@ class MainWindow(QMainWindow):
             a.triggered.connect(lambda v, x=pa: getattr(self, x).setVisible(v))
             vm.addAction(a)
 
-        # Play
-        pm = self.menuBar().addMenu("Play")
-        self._add_action(pm, "▶ Play", "Ctrl+P", self._on_play)
+        pm = mb.addMenu("Play")
+        self._add_action(pm, "▶ Play",  "Ctrl+P",       self._on_play)
         self._add_action(pm, "⏸ Pause", "Ctrl+Shift+P", self._on_pause)
-        self._add_action(pm, "⏹ Stop", "Ctrl+Shift+S", self._on_stop)
+        self._add_action(pm, "⏹ Stop",  "Ctrl+Shift+S", self._on_stop)
 
-        # Gizmo mode hints in menu
-        gm = self.menuBar().addMenu("Gizmo")
-        self._add_action(
-            gm, "Translate (W)", "W", lambda: self.viewport.gizmo.set_mode("translate")
-        )
-        self._add_action(
-            gm, "Rotate (E)", "E", lambda: self.viewport.gizmo.set_mode("rotate")
-        )
-        self._add_action(
-            gm, "Scale (R)", "R", lambda: self.viewport.gizmo.set_mode("scale")
-        )
+        gm = mb.addMenu("Gizmo")
+        self._add_action(gm, "Translate (W)", "W", lambda: self.viewport.gizmo.set_mode("translate"))
+        self._add_action(gm, "Rotate (E)",    "E", lambda: self.viewport.gizmo.set_mode("rotate"))
+        self._add_action(gm, "Scale (R)",     "R", lambda: self.viewport.gizmo.set_mode("scale"))
+
+        # BUG FIX 7: hide menu bar initially; shown when project opens
+        mb.setVisible(False)
 
     def _add_action(self, menu, label, shortcut, fn) -> QAction:
         a = QAction(label, self)
@@ -151,21 +137,29 @@ class MainWindow(QMainWindow):
         menu.addAction(a)
         return a
 
+    def _refresh_inspector_after_undo(self) -> None:
+        """BUG FIX 5: refresh inspector with current selection after undo/redo."""
+        e = self.app.selector.selected_entity
+        if e:
+            self.inspector.show_entity(e)
+        else:
+            self.inspector.clear()
+
     # ------------------------------------------------------------------
     # Panels
     # ------------------------------------------------------------------
 
     def _build_panels(self) -> None:
-        self.hierarchy = HierarchyPanel(self.app, self)
-        self.inspector = InspectorPanel(self.app, self)
-        self.console = ConsolePanel(self.app, self)
-        self.asset_browser = AssetBrowserPanel(self.app, self)
-        self.script_editor = ScriptEditorPanel(self.app, self)
-        self.scene_list = SceneListPanel(self.app, self)
+        self.hierarchy    = HierarchyPanel(self.app, self)
+        self.inspector    = InspectorPanel(self.app, self)
+        self.console      = ConsolePanel(self.app, self)
+        self.asset_browser  = AssetBrowserPanel(self.app, self)
+        self.script_editor  = ScriptEditorPanel(self.app, self)
+        self.scene_list   = SceneListPanel(self.app, self)
 
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.hierarchy)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.scene_list)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.inspector)
+        self.addDockWidget(Qt.LeftDockWidgetArea,   self.hierarchy)
+        self.addDockWidget(Qt.LeftDockWidgetArea,   self.scene_list)
+        self.addDockWidget(Qt.RightDockWidgetArea,  self.inspector)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.console)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.asset_browser)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.script_editor)
@@ -176,14 +170,8 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(self.asset_browser, self.script_editor)
         self.console.raise_()
 
-        for dock in (
-            self.hierarchy,
-            self.inspector,
-            self.console,
-            self.asset_browser,
-            self.script_editor,
-            self.scene_list,
-        ):
+        for dock in (self.hierarchy, self.inspector, self.console,
+                     self.asset_browser, self.script_editor, self.scene_list):
             dock.setVisible(False)
 
     # ------------------------------------------------------------------
@@ -201,11 +189,11 @@ class MainWindow(QMainWindow):
         )
 
         vp_wrap = QWidget()
-        vp_lay = QVBoxLayout(vp_wrap)
+        vp_lay  = QVBoxLayout(vp_wrap)
         vp_lay.setContentsMargins(0, 0, 0, 0)
         vp_lay.setSpacing(0)
 
-        self.toolbar = ViewportToolbar(self)
+        self.toolbar  = ViewportToolbar(self)
         self.viewport = ViewportWidget(self.app)
 
         self.toolbar.sig_cam_toggle.connect(lambda m: self.viewport.camera.set_mode(m))
@@ -225,17 +213,13 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _editor_mode(self, on: bool) -> None:
-        for dock in (
-            self.hierarchy,
-            self.inspector,
-            self.console,
-            self.asset_browser,
-            self.script_editor,
-            self.scene_list,
-        ):
+        for dock in (self.hierarchy, self.inspector, self.console,
+                     self.asset_browser, self.script_editor, self.scene_list):
             dock.setVisible(on)
         self._save_act.setEnabled(on)
         self._close_act.setEnabled(on)
+        # BUG FIX 7: menu bar only visible in editor mode
+        self.menuBar().setVisible(on)
 
     def show_start_screen(self) -> None:
         self._editor_mode(False)
@@ -253,13 +237,12 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def on_project_loaded(self) -> None:
-        pt = self.app.project_type
+        pt  = self.app.project_type
         cam = self.viewport.camera
         cam.set_mode("2d" if pt == "2D" else "3d")
         self.toolbar.set_project_type(pt)
         self.toolbar.set_scene_name(
-            self.app.active_scene.name if self.app.active_scene else ""
-        )
+            self.app.active_scene.name if self.app.active_scene else "")
         self.toolbar.enable_play_controls(True)
         self.hierarchy.refresh()
         self.inspector.clear()
@@ -267,30 +250,20 @@ class MainWindow(QMainWindow):
         self.scene_list.refresh()
         self.show_viewport()
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
     def refresh_hierarchy(self) -> None:
         self.hierarchy.refresh()
 
     def _open_settings(self) -> None:
         from ui.panels.settings_panel import open_settings
-
         open_settings(self.app, self)
 
     # ------------------------------------------------------------------
     # Play
     # ------------------------------------------------------------------
 
-    def _on_play(self) -> None:
-        self.app.play_mode.play()
-
-    def _on_pause(self) -> None:
-        self.app.play_mode.pause()
-
-    def _on_stop(self) -> None:
-        self.app.play_mode.stop()
+    def _on_play(self)  -> None: self.app.play_mode.play()
+    def _on_pause(self) -> None: self.app.play_mode.pause()
+    def _on_stop(self)  -> None: self.app.play_mode.stop()
 
     # ------------------------------------------------------------------
     # Dialogs
@@ -305,10 +278,7 @@ class MainWindow(QMainWindow):
 
     def _on_open(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open Project",
-            str(Path.home()),
-            "NEXIS Project (*.nexis);;All Files (*)",
-        )
+            self, "Open Project", str(Path.home()),
+            "NEXIS Project (*.nexis);;All Files (*)")
         if path:
             self.app.open_project(path)

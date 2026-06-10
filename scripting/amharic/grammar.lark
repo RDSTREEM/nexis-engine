@@ -1,0 +1,180 @@
+// grammar.lark
+// Full Lark LALR grammar for the NEXIS Amharic scripting language.
+// Amharic keywords map to Python constructs.
+// Scripts must define a class ስክሪፕት (or Script) with
+//   on_start / on_update / on_stop / on_input methods.
+
+start: statement+
+
+// ── Statements ─────────────────────────────────────────────────────────────
+
+?statement: class_def
+           | func_def
+           | if_stmt
+           | while_stmt
+           | for_stmt
+           | return_stmt
+           | break_stmt
+           | continue_stmt
+           | pass_stmt
+           | raise_stmt
+           | global_stmt
+           | try_stmt
+           | import_stmt
+           | from_import_stmt
+           | assign_stmt
+           | aug_assign_stmt
+           | expr_stmt
+           | NEWLINE
+
+// ── Class ──────────────────────────────────────────────────────────────────
+
+class_def: CLASS NAME ["(" arglist ")"] ":" suite
+
+// ── Function ───────────────────────────────────────────────────────────────
+
+func_def: DEF NAME "(" params ")" ":" suite
+
+params: (param ("," param)*)?
+param: NAME ["=" expr]
+
+// ── If / elif / else ────────────────────────────────────────────────────────
+
+if_stmt: IF expr ":" suite (ELIF expr ":" suite)* [ELSE ":" suite]
+
+// ── While ──────────────────────────────────────────────────────────────────
+
+while_stmt: WHILE expr ":" suite
+
+// ── For ────────────────────────────────────────────────────────────────────
+
+for_stmt: FOR NAME IN expr ":" suite
+
+// ── Return / break / continue / pass / raise / global ─────────────────────
+
+return_stmt:   RETURN  [expr]
+break_stmt:    BREAK
+continue_stmt: CONTINUE
+pass_stmt:     PASS
+raise_stmt:    RAISE   [expr]
+global_stmt:   GLOBAL  NAME ("," NAME)*
+
+// ── Try / except / finally ─────────────────────────────────────────────────
+
+try_stmt: TRY ":" suite
+          (except_clause+)
+          [FINALLY ":" suite]
+
+except_clause: EXCEPT [expr ["AS" NAME]] ":" suite
+
+// ── Import ─────────────────────────────────────────────────────────────────
+
+import_stmt:      IMPORT dotted_name ["AS" NAME]
+from_import_stmt: FROM  dotted_name IMPORT (NAME | "*") ["AS" NAME]
+
+dotted_name: NAME ("." NAME)*
+
+// ── Assignment ─────────────────────────────────────────────────────────────
+
+assign_stmt:     lvalue "=" expr
+aug_assign_stmt: lvalue AUGOP expr
+
+lvalue: NAME
+      | expr "[" expr "]"
+      | expr "." NAME
+
+// ── Expression statement ────────────────────────────────────────────────────
+
+expr_stmt: expr
+
+// ── Suite (indented block) ─────────────────────────────────────────────────
+
+suite: NEWLINE INDENT statement+ DEDENT
+     | simple_stmt NEWLINE
+
+simple_stmt: statement
+
+// ── Expressions ─────────────────────────────────────────────────────────────
+
+?expr: or_expr
+
+?or_expr:  and_expr   (OR  and_expr)*
+?and_expr: not_expr   (AND not_expr)*
+?not_expr: NOT not_expr | comparison
+
+?comparison: arith (CMPOP arith)*
+
+?arith: term ((ADDOP) term)*
+?term:  factor ((MULOP) factor)*
+?factor: ADDOP factor | power
+
+?power: atom_expr ["**" factor]
+
+?atom_expr: atom trailer*
+
+trailer: "(" [arglist]   ")"   -> call
+       | "[" expr        "]"   -> subscript
+       | "." NAME               -> attr
+
+?atom: "(" expr ")"     -> paren
+     | "[" [exprlist] "]" -> list_expr
+     | "{" [dictitems] "}" -> dict_expr
+     | NAME               -> name
+     | NUMBER             -> number
+     | STRING+            -> string
+     | TRUE               -> true
+     | FALSE              -> false
+     | NONE               -> none
+     | PRINT "(" [arglist] ")" -> print_call
+
+arglist:  expr ("," expr)* [","]
+exprlist: expr ("," expr)* [","]
+
+dictitems: expr ":" expr ("," expr ":" expr)* [","]
+
+// ── Tokens ──────────────────────────────────────────────────────────────────
+
+// Amharic keywords (primary) + English aliases (secondary)
+CLASS:    "ክፍል"    | "class"
+DEF:      "ተግባር"   | "def"
+RETURN:   "ካርታ"   | "return"
+IF:       "ከሆነ"   | "if"
+ELIF:     "ያለዚያ"  | "elif"
+ELSE:     "ካልሆነ"  | "else"
+WHILE:    "እስካለ"  | "while"
+FOR:      "ለእያንዳንዱ" | "for"
+IN:       "ውስጥ"   | "in"
+AND:      "እና"    | "and"
+OR:       "ወይም"   | "or"
+NOT:      "አይደለም" | "not"
+BREAK:    "አቁም"   | "break"
+CONTINUE: "ቀጥል"   | "continue"
+PASS:     "ምንም_ሳይሆን" | "pass"
+RAISE:    "ከፍ"    | "raise"
+GLOBAL:   "ከጋራ"  | "global"
+TRY:      "ሞክር"   | "try"
+EXCEPT:   "ያዝ"    | "except"
+FINALLY:  "በመጨረሻ" | "finally"
+IMPORT:   "አስገባ"  | "import"
+FROM:     "ከ"     | "from"
+AS:       "እንደ"   | "as"
+PRINT:    "አትም"   | "print"
+TRUE:     "እውነት"  | "True"
+FALSE:    "ሐሰት"   | "False"
+NONE:     "ምንም"   | "None"
+
+AUGOP:  "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "//="
+CMPOP:  "==" | "!=" | ">=" | "<=" | ">" | "<" | "is" | "is not" | "in" | "not in"
+ADDOP:  "+" | "-"
+MULOP:  "*" | "/" | "//" | "%" | "@"
+
+NAME:   /[a-zA-Z_\u1200-\u137F\u1380-\u139F\u2D80-\u2DDF][a-zA-Z0-9_\u1200-\u137F\u1380-\u139F\u2D80-\u2DDF]*/
+NUMBER: /\d+(\.\d+)?([eE][+-]?\d+)?/
+STRING: /\"[^\"\\]*(?:\\.[^\"\\]*)*\"/ | /\'[^\'\\]*(?:\\.[^\'\\]*)*\'/
+
+%import common.NEWLINE
+%import common.INDENT
+%import common.DEDENT
+%import common.WS_INLINE
+%ignore WS_INLINE
+%ignore /\#[^\n]*/    // comments

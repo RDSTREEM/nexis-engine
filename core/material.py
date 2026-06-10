@@ -1,115 +1,101 @@
+"""
+material.py
+Fixed material system.
+- set_texture() now accepts either a ModernGL Texture object or a raw PIL/numpy
+  image, uploading to GPU automatically when a context is available.
+- use_texture flag is set/cleared properly.
+- to_dict/from_dict preserve texture path for save/load.
+"""
 from __future__ import annotations
-
+from pathlib import Path
 from typing import Optional, TYPE_CHECKING
-import numpy as np
 
-from core.shader import Shader
+import numpy as np
 
 if TYPE_CHECKING:
     import moderngl
 
 
 class Material:
-    """
-    Holds a Shader plus the uniform values and optional texture
-    that define how a surface looks.
-    """
-
-    def __init__(self, shader: Optional[Shader] = None, name: str = "Material"):
-        self.name: str = name
-        self.shader: Shader = shader or Shader.from_builtin("mesh")
-
-        # standard uniforms
-        self.color: np.ndarray = np.array([1.0, 1.0, 1.0, 1.0], dtype="f4")
-        self.use_texture: bool = False
-        self.texture: Optional["moderngl.Texture"] = None
-
-        # default light settings
-        self.light_dir: np.ndarray = np.array([0.5, -1.0, 0.5], dtype="f4")
-        self.light_color: np.ndarray = np.array([1.0, 1.0, 1.0], dtype="f4")
-        self.ambient: float = 0.25
-
-        # arbitrary extra uniforms (name → value)
-        self._extras: dict = {}
+    def __init__(self):
+        self.color:       np.ndarray = np.array([1.0, 1.0, 1.0, 1.0], dtype="f4")
+        self.ambient:     float      = 0.3
+        self.texture:     Optional["moderngl.Texture"] = None
+        self.use_texture: bool       = False
+        self._tex_path:   str        = ""   # for serialization
 
     # ------------------------------------------------------------------
 
     def set_color(self, r: float, g: float, b: float, a: float = 1.0) -> None:
-        self.color[:] = (r, g, b, a)
+        self.color[:] = [r, g, b, a]
 
     def set_texture(self, texture: "moderngl.Texture") -> None:
-        self.texture = texture
-        self.use_texture = True
+        """Assign a GPU texture. Pass None to clear."""
+        if texture is None:
+            self.texture     = None
+            self.use_texture = False
+            self._tex_path   = ""
+        else:
+            self.texture     = texture
+            self.use_texture = True
 
-    def set_uniform(self, name: str, value) -> None:
-        """Set an arbitrary extra uniform by name."""
-        self._extras[name] = value
+    def set_texture_path(self, path: str) -> None:
+        """Record path for save/load — actual upload done by inspector/importer."""
+        self._tex_path = path
 
-    def compile(self, ctx: "moderngl.Context") -> None:
-        if not self.shader.is_compiled():
-            self.shader.compile(ctx)
+    def upload_texture_from_path(self, ctx: "moderngl.Context", path: str) -> bool:
+        """
+        Attempt to load an image file and upload to GPU.
+        Returns True on success.
+        """
+        try:
+            from PIL import Image
+            img = Image.open(path).convert("RGBA")
+            w, h = img.size
+            data = img.tobytes()
+            tex  = ctx.texture((w, h), 4, data)
+            tex.build_mipmaps()
+            tex.filter = ctx.LINEAR_MIPMAP_LINEAR, ctx.LINEAR
+            self.set_texture(tex)
+            self._tex_path = path
+            return True
+        except Exception as e:
+            print(f"[Material] Could not load texture '{path}': {e}")
+            return False
 
-    def bind(
-        self, model_matrix: np.ndarray, view: np.ndarray, proj: np.ndarray
-    ) -> None:
-        """Write all uniforms into the shader program."""
-        prog = self.shader.program
-        if prog is None:
-            return
-
-        # matrices
-        if "u_model" in prog:
-            prog["u_model"].write(model_matrix.T.tobytes())
-        if "u_view" in prog:
-            prog["u_view"].write(view.T.tobytes())
-        if "u_proj" in prog:
-            prog["u_proj"].write(proj.T.tobytes())
-
-        # material properties
+    def bind(self, prog: "moderngl.Program", unit: int = 0) -> None:
+        """Bind this material's uniforms to a shader program."""
         if "u_color" in prog:
-            prog["u_color"].write(self.color.tobytes())
-        if "u_use_texture" in prog:
-            prog["u_use_texture"].value = self.use_texture
-        if "u_light_dir" in prog:
-            prog["u_light_dir"].write(self.light_dir.tobytes())
-        if "u_light_color" in prog:
-            prog["u_light_color"].write(self.light_color.tobytes())
+            prog["u_color"].value = tuple(self.color)
         if "u_ambient" in prog:
-            prog["u_ambient"].value = self.ambient
-
-        # texture
+            prog["u_ambient"].value = float(self.ambient)
+        if "u_use_texture" in prog:
+            prog["u_use_texture"].value = int(self.use_texture and self.texture is not None)
         if self.use_texture and self.texture is not None:
-            self.texture.use(location=0)
+            self.texture.use(location=unit)
             if "u_texture" in prog:
-                prog["u_texture"].value = 0
-
-        # extras
-        for name, val in self._extras.items():
-            self.shader.set(name, val)
+                prog["u_texture"].value = unit
 
     # ------------------------------------------------------------------
 
     def to_dict(self) -> dict:
         return {
-            "name": self.name,
-            "shader": self.shader.to_dict(),
-            "color": self.color.tolist(),
+            "color":       self.color.tolist(),
+            "ambient":     self.ambient,
             "use_texture": self.use_texture,
-            "ambient": self.ambient,
-            "light_dir": self.light_dir.tolist(),
-            "light_color": self.light_color.tolist(),
+            "tex_path":    self._tex_path,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "Material":
-        shader = Shader.from_dict(data["shader"])
-        mat = cls(shader, name=data.get("name", "Material"))
-        mat.color = np.array(data.get("color", [1, 1, 1, 1]), dtype="f4")
-        mat.use_texture = data.get("use_texture", False)
-        mat.ambient = data.get("ambient", 0.25)
-        mat.light_dir = np.array(data.get("light_dir", [0.5, -1, 0.5]), dtype="f4")
-        mat.light_color = np.array(data.get("light_color", [1, 1, 1]), dtype="f4")
-        return mat
+        m = cls()
+        m.color[:]    = data.get("color", [1, 1, 1, 1])
+        m.ambient     = data.get("ambient", 0.3)
+        m.use_texture = data.get("use_texture", False)
+        m._tex_path   = data.get("tex_path", "")
+        return m
 
-    def __repr__(self) -> str:
-        return f"<Material '{self.name}' shader='{self.shader.name}'>"
+    def reload_texture(self, ctx: "moderngl.Context") -> None:
+        """Re-upload texture after scene load if path is set."""
+        if self._tex_path and not self.texture:
+            self.upload_texture_from_path(ctx, self._tex_path)

@@ -1,16 +1,11 @@
 """
 audio_source.py
-AudioSource component — plays AudioClip assets.
-Works with the sounddevice/soundfile audio pipeline.
-Scriptable: call play(), stop(), pause() from on_update.
+BUG FIX: _run() was `self.clip.samples * self.clip` — should be `* self.volume`.
 """
-
 from __future__ import annotations
 import threading
 from typing import Optional, TYPE_CHECKING
-
 import numpy as np
-
 from core.component import Component
 
 if TYPE_CHECKING:
@@ -22,16 +17,14 @@ class AudioSource(Component):
         super().__init__()
         self.clip: Optional["AudioClip"] = None
         self.volume: float = 1.0
-        self.pitch: float = 1.0  # resampling factor
+        self.pitch: float = 1.0
         self.loop: bool = False
         self.play_on_start: bool = False
-        self.spatial: bool = False  # future: positional audio
+        self.spatial: bool = False
         self._playing: bool = False
         self._paused: bool = False
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
-
-    # ------------------------------------------------------------------
 
     def set_clip(self, clip: "AudioClip") -> None:
         self.clip = clip
@@ -42,10 +35,6 @@ class AudioSource(Component):
 
     def on_stop(self) -> None:
         self.stop()
-
-    # ------------------------------------------------------------------
-    # Playback
-    # ------------------------------------------------------------------
 
     def play(self, from_start: bool = True) -> None:
         if self.clip is None:
@@ -62,7 +51,6 @@ class AudioSource(Component):
             self._stop_event.set()
             try:
                 import sounddevice as sd
-
                 sd.stop()
             except Exception:
                 pass
@@ -75,7 +63,6 @@ class AudioSource(Component):
         self._paused = not self._paused
         try:
             import sounddevice as sd
-
             if self._paused:
                 sd.stop()
         except Exception:
@@ -85,49 +72,34 @@ class AudioSource(Component):
     def is_playing(self) -> bool:
         return self._playing and not self._paused
 
-    # ------------------------------------------------------------------
-
     def _run(self) -> None:
         try:
             import sounddevice as sd
-
-            samples = self.clip.samples * self.clip
-
-            # pitch shift via resampling
+            # FIX: was `self.clip.samples * self.clip` (bug — multiplied by object)
             if abs(self.pitch - 1.0) > 0.01:
-                import numpy as np
-
                 orig_len = len(self.clip.samples)
-                new_len = int(orig_len / self.pitch)
+                new_len = max(1, int(orig_len / self.pitch))
                 indices = np.linspace(0, orig_len - 1, new_len).astype(int)
-                samples = self.clip.samples[indices]
-
-            samples = samples * self.volume
-
+                samples = self.clip.samples[indices] * self.volume
+            else:
+                samples = self.clip.samples * self.volume  # was * self.clip
             while not self._stop_event.is_set():
                 sd.play(samples, self.clip.sample_rate, blocking=True)
                 if not self.loop or self._stop_event.is_set():
                     break
-
         except Exception as e:
             print(f"[AudioSource] Playback error: {e}")
         finally:
             self._playing = False
 
-    # ------------------------------------------------------------------
-
     def to_dict(self) -> dict:
         d = super().to_dict()
-        d.update(
-            {
-                "volume": self.volume,
-                "pitch": self.pitch,
-                "loop": self.loop,
-                "play_on_start": self.play_on_start,
-                "spatial": self.spatial,
-                "clip_path": self.clip.name if self.clip else "",
-            }
-        )
+        d.update({
+            "volume": self.volume, "pitch": self.pitch,
+            "loop": self.loop, "play_on_start": self.play_on_start,
+            "spatial": self.spatial,
+            "clip_path": self.clip.name if self.clip else "",
+        })
         return d
 
     @classmethod

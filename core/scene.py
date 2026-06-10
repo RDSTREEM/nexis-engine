@@ -1,3 +1,8 @@
+"""
+scene.py
+BUG FIX 4: render_editor swaps transform._matrix but doesn't restore on exception.
+            Added try/finally to guarantee restore.
+"""
 from __future__ import annotations
 from typing import List, Optional
 import moderngl
@@ -10,18 +15,16 @@ from core.camera_component import CameraComponent
 
 
 class Scene:
-    def __init__(self, name: str = "Untitled Scene",
-                 scene_type: str = "3D"):
+    def __init__(self, name: str = "Untitled Scene", scene_type: str = "3D"):
         self.name:       str          = name
         self.scene_type: str          = scene_type
-        self._entities:  List[Entity] = []   # top-level only
+        self._entities:  List[Entity] = []
 
     # ------------------------------------------------------------------
     # Entity management
     # ------------------------------------------------------------------
 
-    def create_entity(self, name: str = "Entity",
-                      template_fn=None) -> Entity:
+    def create_entity(self, name: str = "Entity", template_fn=None) -> Entity:
         if template_fn:
             e = template_fn(self, name)
         else:
@@ -38,7 +41,6 @@ class Scene:
         if entity in self._entities:
             self._entities.remove(entity)
             entity.scene = None
-        # also check children of top-level entities
         for top in self._entities:
             if entity in top.children:
                 top.remove_child(entity)
@@ -60,11 +62,9 @@ class Scene:
 
     @property
     def entities(self) -> List[Entity]:
-        """Top-level entities only."""
         return list(self._entities)
 
     def all_entities(self) -> List[Entity]:
-        """All entities including nested children."""
         return list(self._all_entities())
 
     def _all_entities(self):
@@ -89,28 +89,31 @@ class Scene:
             e.on_stop()
 
     # ------------------------------------------------------------------
-    # Rendering — renders ALL entities recursively
+    # Rendering
     # ------------------------------------------------------------------
 
     def render_editor(self, ctx: moderngl.Context,
-                      view: np.ndarray,
-                      proj: np.ndarray) -> None:
+                      view: np.ndarray, proj: np.ndarray) -> None:
         for entity in self._all_entities():
             if not entity.enabled:
                 continue
-            # use world matrix (includes parent chain)
             self._render_entity(ctx, entity, view, proj)
 
     def _render_entity(self, ctx, entity, view, proj):
+        """BUG FIX 4: try/finally guarantees transform._matrix is always restored."""
         for comp_cls in (MeshRenderer, SpriteRenderer, Shape2DRenderer):
             comp = entity.get_component(comp_cls)
             if comp and comp.enabled:
-                # temporarily override model with world matrix
-                orig = entity.transform.matrix.copy()
-                entity.transform._matrix = entity.world_matrix()
-                entity.transform._dirty  = False
-                comp.render(ctx, view, proj)
-                entity.transform._matrix = orig
+                orig_matrix = entity.transform._matrix.copy()
+                orig_dirty  = entity.transform._dirty
+                try:
+                    entity.transform._matrix = entity.world_matrix()
+                    entity.transform._dirty  = False
+                    comp.render(ctx, view, proj)
+                finally:
+                    # Always restore — even if comp.render() throws
+                    entity.transform._matrix = orig_matrix
+                    entity.transform._dirty  = orig_dirty
 
     def render_play(self, ctx, width, height) -> bool:
         cam = self._find_main_camera()

@@ -1,308 +1,313 @@
 """
 physics_2d.py
-Lightweight 2D physics — no heavy library needed.
-Supports AABB and Circle colliders, velocity, gravity, overlap detection.
-Runs entirely in Python/numpy; plugs into the scene update loop.
+Additions:
+- _collision_events list on PhysicsWorld2D (consumed by play_mode)
+- set_box_shape / set_circle_shape / get_body methods
+- on_collision_enter / on_collision_exit slots on collider components
+- Body.velocity exposed as a list
 """
-
 from __future__ import annotations
-
-import numpy as np
-from typing import List, Optional, Tuple, TYPE_CHECKING
+import math
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple, Callable
 
 from core.component import Component
 
-if TYPE_CHECKING:
-    from core.entity import Entity
-    from core.scene import Scene
+
+# ── Physics Body ─────────────────────────────────────────────────────────────
+
+@dataclass
+class PhysicsBody:
+    entity_id:     str
+    position:      List[float]   = field(default_factory=lambda: [0.0, 0.0])
+    velocity:      List[float]   = field(default_factory=lambda: [0.0, 0.0])
+    mass:          float         = 1.0
+    inv_mass:      float         = 1.0
+    is_kinematic:  bool          = False
+    gravity_scale: float         = 1.0
+    drag:          float         = 0.05
+    # Shape: "box" | "circle" | None
+    shape:         Optional[str] = None
+    shape_data:    dict          = field(default_factory=dict)  # {"w":, "h":} or {"r":}
+    is_trigger:    bool          = False
+
+    def __post_init__(self):
+        if self.is_kinematic or self.mass <= 0:
+            self.inv_mass = 0.0
+        else:
+            self.inv_mass = 1.0 / self.mass
 
 
-# ------------------------------------------------------------------
-# Collider components
-# ------------------------------------------------------------------
+# ── World ────────────────────────────────────────────────────────────────────
 
+class PhysicsWorld2D:
+    def __init__(self, gravity=(0.0, -9.81)):
+        self.gravity: Tuple[float, float] = gravity
+        self._bodies: Dict[str, PhysicsBody] = {}
+        self._collision_events: List[Tuple[str, str, bool]] = []
+        self._prev_pairs: set = set()
 
-class BoxCollider2D(Component):
-    """Axis-aligned bounding box collider in 2D (XY plane)."""
+    # ── Body management ───────────────────────────────────────────────────────
 
-    def __init__(
-        self,
-        width: float = 1.0,
-        height: float = 1.0,
-        offset: Tuple[float, float] = (0.0, 0.0),
-    ):
-        super().__init__()
-        self.width = width
-        self.height = height
-        self.offset = np.array(offset, dtype="f4")
-        self.is_trigger = False  # trigger = detect but don't resolve
-
-    def world_rect(self) -> Tuple[np.ndarray, np.ndarray]:
-        """Returns (min_xy, max_xy) in world space."""
-        if self.entity is None:
-            return np.zeros(2, dtype="f4"), np.zeros(2, dtype="f4")
-        pos = self.entity.transform.position[:2] + self.offset
-        half = np.array([self.width / 2, self.height / 2], dtype="f4")
-        return pos - half, pos + half
-
-    def to_dict(self) -> dict:
-        d = super().to_dict()
-        d.update(
-            {
-                "width": self.width,
-                "height": self.height,
-                "offset": self.offset.tolist(),
-                "is_trigger": self.is_trigger,
-            }
+    def add_body(self, entity_id: str,
+                 x: float = 0.0, y: float = 0.0,
+                 mass: float = 1.0,
+                 is_kinematic: bool = False,
+                 gravity_scale: float = 1.0,
+                 drag: float = 0.05) -> PhysicsBody:
+        body = PhysicsBody(
+            entity_id=entity_id,
+            position=[x, y],
+            mass=mass,
+            is_kinematic=is_kinematic,
+            gravity_scale=gravity_scale,
+            drag=drag,
         )
-        return d
+        self._bodies[entity_id] = body
+        return body
 
-    @classmethod
-    def from_dict(cls, data: dict) -> "BoxCollider2D":
-        c = cls(data.get("width", 1), data.get("height", 1), data.get("offset", [0, 0]))
-        c.is_trigger = data.get("is_trigger", False)
-        c.enabled = data.get("enabled", True)
-        return c
+    def get_body(self, entity_id: str) -> Optional[PhysicsBody]:
+        return self._bodies.get(entity_id)
+
+    def remove_body(self, entity_id: str) -> None:
+        self._bodies.pop(entity_id, None)
+
+    def set_box_shape(self, entity_id: str, w: float, h: float,
+                      is_trigger: bool = False) -> None:
+        b = self._bodies.get(entity_id)
+        if b:
+            b.shape      = "box"
+            b.shape_data = {"w": w, "h": h}
+            b.is_trigger = is_trigger
+
+    def set_circle_shape(self, entity_id: str, radius: float,
+                         is_trigger: bool = False) -> None:
+        b = self._bodies.get(entity_id)
+        if b:
+            b.shape      = "circle"
+            b.shape_data = {"r": radius}
+            b.is_trigger = is_trigger
+
+    # ── Simulation step ───────────────────────────────────────────────────────
+
+    def step(self, dt: float) -> None:
+        gx, gy = self.gravity
+
+        for body in self._bodies.values():
+            if body.is_kinematic or body.inv_mass == 0:
+                continue
+
+            # Gravity
+            body.velocity[0] += gx * body.gravity_scale * dt
+            body.velocity[1] += gy * body.gravity_scale * dt
+
+            # Drag
+            drag = max(0.0, 1.0 - body.drag * dt)
+            body.velocity[0] *= drag
+            body.velocity[1] *= drag
+
+            # Integrate
+            body.position[0] += body.velocity[0] * dt
+            body.position[1] += body.velocity[1] * dt
+
+        # Collision detection + resolution
+        self._detect_and_resolve()
+
+    # ── AABB/Circle broad + narrow phase ─────────────────────────────────────
+
+    def _detect_and_resolve(self) -> None:
+        bodies = list(self._bodies.values())
+        current_pairs: set = set()
+
+        for i in range(len(bodies)):
+            for j in range(i + 1, len(bodies)):
+                a = bodies[i]
+                b = bodies[j]
+                if a.shape is None or b.shape is None:
+                    continue
+
+                overlap, normal = self._test_overlap(a, b)
+                if overlap is None:
+                    continue
+
+                pair = (a.entity_id, b.entity_id)
+                current_pairs.add(pair)
+
+                # Fire enter/exit events
+                if pair not in self._prev_pairs:
+                    self._collision_events.append((a.entity_id, b.entity_id, True))
+
+                # Resolve (skip triggers)
+                if not a.is_trigger and not b.is_trigger:
+                    self._resolve(a, b, overlap, normal)
+
+        # Exit events for pairs that ended
+        for pair in self._prev_pairs - current_pairs:
+            self._collision_events.append((pair[0], pair[1], False))
+
+        self._prev_pairs = current_pairs
+
+    def _test_overlap(self, a: PhysicsBody, b: PhysicsBody):
+        """Returns (overlap_depth, normal) or (None, None)."""
+        if a.shape == "box" and b.shape == "box":
+            return self._aabb_vs_aabb(a, b)
+        if a.shape == "circle" and b.shape == "circle":
+            return self._circle_vs_circle(a, b)
+        if a.shape == "box" and b.shape == "circle":
+            return self._aabb_vs_circle(a, b)
+        if a.shape == "circle" and b.shape == "box":
+            ov, n = self._aabb_vs_circle(b, a)
+            if n is not None:
+                return ov, (-n[0], -n[1])
+            return None, None
+        return None, None
+
+    def _aabb_vs_aabb(self, a: PhysicsBody, b: PhysicsBody):
+        hw_a = a.shape_data["w"] / 2
+        hh_a = a.shape_data["h"] / 2
+        hw_b = b.shape_data["w"] / 2
+        hh_b = b.shape_data["h"] / 2
+
+        dx = b.position[0] - a.position[0]
+        dy = b.position[1] - a.position[1]
+        ox = (hw_a + hw_b) - abs(dx)
+        oy = (hh_a + hh_b) - abs(dy)
+
+        if ox <= 0 or oy <= 0:
+            return None, None
+        if ox < oy:
+            nx = 1.0 if dx > 0 else -1.0
+            return ox, (nx, 0.0)
+        else:
+            ny = 1.0 if dy > 0 else -1.0
+            return oy, (0.0, ny)
+
+    def _circle_vs_circle(self, a: PhysicsBody, b: PhysicsBody):
+        ra = a.shape_data["r"]
+        rb = b.shape_data["r"]
+        dx = b.position[0] - a.position[0]
+        dy = b.position[1] - a.position[1]
+        dist2 = dx*dx + dy*dy
+        min_d = ra + rb
+        if dist2 >= min_d * min_d:
+            return None, None
+        dist = math.sqrt(dist2) or 1e-8
+        return (min_d - dist), (dx/dist, dy/dist)
+
+    def _aabb_vs_circle(self, box: PhysicsBody, circle: PhysicsBody):
+        hw = box.shape_data["w"] / 2
+        hh = box.shape_data["h"] / 2
+        r  = circle.shape_data["r"]
+        cx = circle.position[0] - box.position[0]
+        cy = circle.position[1] - box.position[1]
+        clamp_x = max(-hw, min(hw, cx))
+        clamp_y = max(-hh, min(hh, cy))
+        dx = cx - clamp_x
+        dy = cy - clamp_y
+        dist2 = dx*dx + dy*dy
+        if dist2 >= r*r:
+            return None, None
+        dist = math.sqrt(dist2) or 1e-8
+        return (r - dist), (dx/dist, dy/dist)
+
+    def _resolve(self, a: PhysicsBody, b: PhysicsBody,
+                 overlap: float, normal: Tuple[float, float]) -> None:
+        nx, ny = normal
+        total_inv = a.inv_mass + b.inv_mass
+        if total_inv == 0:
+            return
+
+        # Positional correction (prevent sinking)
+        correction = overlap / total_inv * 0.8
+        a.position[0] -= nx * correction * a.inv_mass
+        a.position[1] -= ny * correction * a.inv_mass
+        b.position[0] += nx * correction * b.inv_mass
+        b.position[1] += ny * correction * b.inv_mass
+
+        # Impulse resolution
+        rv_x = b.velocity[0] - a.velocity[0]
+        rv_y = b.velocity[1] - a.velocity[1]
+        vel_along_normal = rv_x * nx + rv_y * ny
+
+        if vel_along_normal > 0:
+            return   # separating
+
+        restitution = 0.3
+        j = -(1 + restitution) * vel_along_normal / total_inv
+
+        a.velocity[0] -= j * nx * a.inv_mass
+        a.velocity[1] -= j * ny * a.inv_mass
+        b.velocity[0] += j * nx * b.inv_mass
+        b.velocity[1] += j * ny * b.inv_mass
 
 
-class CircleCollider2D(Component):
-    """Circle collider in 2D."""
-
-    def __init__(self, radius: float = 0.5, offset: Tuple[float, float] = (0.0, 0.0)):
-        super().__init__()
-        self.radius = radius
-        self.offset = np.array(offset, dtype="f4")
-        self.is_trigger = False
-
-    def world_center(self) -> np.ndarray:
-        if self.entity is None:
-            return np.zeros(2, dtype="f4")
-        return self.entity.transform.position[:2] + self.offset
-
-    def to_dict(self) -> dict:
-        d = super().to_dict()
-        d.update(
-            {
-                "radius": self.radius,
-                "offset": self.offset.tolist(),
-                "is_trigger": self.is_trigger,
-            }
-        )
-        return d
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "CircleCollider2D":
-        c = cls(data.get("radius", 0.5), data.get("offset", [0, 0]))
-        c.is_trigger = data.get("is_trigger", False)
-        c.enabled = data.get("enabled", True)
-        return c
-
-
-# ------------------------------------------------------------------
-# Rigidbody
-# ------------------------------------------------------------------
-
+# ── Components ────────────────────────────────────────────────────────────────
 
 class Rigidbody2D(Component):
-    """Simple 2D rigidbody — velocity, gravity, drag."""
-
     def __init__(self):
         super().__init__()
-        self.velocity: np.ndarray = np.zeros(2, dtype="f4")
+        self.mass:          float = 1.0
         self.gravity_scale: float = 1.0
-        self.drag: float = 0.02
-        self.is_kinematic: bool = False  # kinematic = no physics, script-driven
-        self.mass: float = 1.0
-        self._grounded: bool = False
-
-    def apply_force(self, fx: float, fy: float) -> None:
-        if not self.is_kinematic:
-            self.velocity += np.array([fx, fy], dtype="f4") / self.mass
-
-    def apply_impulse(self, fx: float, fy: float) -> None:
-        if not self.is_kinematic:
-            self.velocity += np.array([fx, fy], dtype="f4")
-
-    @property
-    def grounded(self) -> bool:
-        return self._grounded
+        self.drag:          float = 0.05
+        self.is_kinematic:  bool  = False
+        self.velocity:      list  = [0.0, 0.0]   # synced from PhysicsBody
 
     def to_dict(self) -> dict:
         d = super().to_dict()
-        d.update(
-            {
-                "velocity": self.velocity.tolist(),
-                "gravity_scale": self.gravity_scale,
-                "drag": self.drag,
-                "is_kinematic": self.is_kinematic,
-                "mass": self.mass,
-            }
-        )
+        d.update({"mass": self.mass, "gravity_scale": self.gravity_scale,
+                  "drag": self.drag, "is_kinematic": self.is_kinematic})
         return d
 
     @classmethod
     def from_dict(cls, data: dict) -> "Rigidbody2D":
         rb = cls()
-        rb.velocity = np.array(data.get("velocity", [0, 0]), dtype="f4")
+        rb.enabled       = data.get("enabled", True)
+        rb.mass          = data.get("mass", 1.0)
         rb.gravity_scale = data.get("gravity_scale", 1.0)
-        rb.drag = data.get("drag", 0.02)
-        rb.is_kinematic = data.get("is_kinematic", False)
-        rb.mass = data.get("mass", 1.0)
-        rb.enabled = data.get("enabled", True)
+        rb.drag          = data.get("drag", 0.05)
+        rb.is_kinematic  = data.get("is_kinematic", False)
         return rb
 
 
-# ------------------------------------------------------------------
-# Collision result
-# ------------------------------------------------------------------
+class BoxCollider2D(Component):
+    def __init__(self, width: float = 1.0, height: float = 1.0):
+        super().__init__()
+        self.width:      float    = width
+        self.height:     float    = height
+        self.is_trigger: bool     = False
+        self.on_collision_enter: Optional[Callable] = None
+        self.on_collision_exit:  Optional[Callable] = None
+
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        d.update({"width": self.width, "height": self.height,
+                  "is_trigger": self.is_trigger})
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "BoxCollider2D":
+        c = cls(data.get("width", 1.0), data.get("height", 1.0))
+        c.enabled    = data.get("enabled", True)
+        c.is_trigger = data.get("is_trigger", False)
+        return c
 
 
-class Collision2D:
-    def __init__(
-        self,
-        entity_a: "Entity",
-        entity_b: "Entity",
-        normal: np.ndarray,
-        penetration: float,
-    ):
-        self.entity_a = entity_a
-        self.entity_b = entity_b
-        self.normal = normal
-        self.penetration = penetration
+class CircleCollider2D(Component):
+    def __init__(self, radius: float = 0.5):
+        super().__init__()
+        self.radius:     float    = radius
+        self.is_trigger: bool     = False
+        self.on_collision_enter: Optional[Callable] = None
+        self.on_collision_exit:  Optional[Callable] = None
 
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        d.update({"radius": self.radius, "is_trigger": self.is_trigger})
+        return d
 
-# ------------------------------------------------------------------
-# Physics world
-# ------------------------------------------------------------------
-
-GRAVITY = np.array([0.0, -9.81], dtype="f4")
-
-
-class PhysicsWorld2D:
-    """
-    Integrate into the scene update loop:
-        physics_world.step(scene, delta_time)
-    """
-
-    def __init__(self, gravity_y: float = -9.81):
-        self.gravity = np.array([0.0, gravity_y], dtype="f4")
-
-    def step(self, scene: "Scene", dt: float) -> List[Collision2D]:
-        entities = [e for e in scene.entities if e.enabled]
-        collisions: List[Collision2D] = []
-
-        # integrate velocity
-        for e in entities:
-            rb = e.get_component(Rigidbody2D)
-            if rb is None or not rb.enabled or rb.is_kinematic:
-                continue
-            rb.velocity += self.gravity * rb.gravity_scale * dt
-            rb.velocity *= 1.0 - rb.drag
-            pos = e.transform.position
-            pos[0] += rb.velocity[0] * dt
-            pos[1] += rb.velocity[1] * dt
-            e.transform._dirty = True
-
-        # detect + resolve collisions
-        for i, ea in enumerate(entities):
-            for eb in entities[i + 1 :]:
-                col = self._check(ea, eb)
-                if col:
-                    collisions.append(col)
-                    if not col.entity_a.get_component(
-                        Rigidbody2D
-                    ) or not col.entity_b.get_component(Rigidbody2D):
-                        continue
-                    self._resolve(col)
-
-        return collisions
-
-    # ------------------------------------------------------------------
-
-    def _check(self, ea: "Entity", eb: "Entity") -> Optional[Collision2D]:
-        # box vs box
-        ba = ea.get_component(BoxCollider2D)
-        bb = eb.get_component(BoxCollider2D)
-        if ba and bb and ba.enabled and bb.enabled:
-            return self._box_box(ea, ba, eb, bb)
-
-        # circle vs circle
-        ca = ea.get_component(CircleCollider2D)
-        cb = eb.get_component(CircleCollider2D)
-        if ca and cb and ca.enabled and cb.enabled:
-            return self._circle_circle(ea, ca, eb, cb)
-
-        # box vs circle
-        if ba and cb and ba.enabled and cb.enabled:
-            return self._box_circle(ea, ba, eb, cb)
-        if ca and bb and ca.enabled and bb.enabled:
-            col = self._box_circle(eb, bb, ea, ca)
-            if col:
-                col.normal = -col.normal
-                col.entity_a, col.entity_b = col.entity_b, col.entity_a
-            return col
-
-        return None
-
-    def _box_box(self, ea, ba, eb, bb) -> Optional[Collision2D]:
-        mn_a, mx_a = ba.world_rect()
-        mn_b, mx_b = bb.world_rect()
-        ox = min(mx_a[0], mx_b[0]) - max(mn_a[0], mn_b[0])
-        oy = min(mx_a[1], mx_b[1]) - max(mn_a[1], mn_b[1])
-        if ox <= 0 or oy <= 0:
-            return None
-        if ox < oy:
-            normal = np.array([1, 0] if (mn_a[0] < mn_b[0]) else [-1, 0], dtype="f4")
-            pen = ox
-        else:
-            normal = np.array([0, 1] if (mn_a[1] < mn_b[1]) else [0, -1], dtype="f4")
-            pen = oy
-        return Collision2D(ea, eb, normal, pen)
-
-    def _circle_circle(self, ea, ca, eb, cb) -> Optional[Collision2D]:
-        delta = cb.world_center() - ca.world_center()
-        dist = np.linalg.norm(delta)
-        radii = ca.radius + cb.radius
-        if dist >= radii:
-            return None
-        normal = delta / dist if dist > 1e-8 else np.array([1, 0], dtype="f4")
-        return Collision2D(ea, eb, normal, radii - dist)
-
-    def _box_circle(self, ea, ba, eb, cb) -> Optional[Collision2D]:
-        mn, mx = ba.world_rect()
-        center = cb.world_center()
-        closest = np.clip(center, mn, mx)
-        delta = center - closest
-        dist = np.linalg.norm(delta)
-        if dist >= cb.radius:
-            return None
-        normal = delta / dist if dist > 1e-8 else np.array([0, 1], dtype="f4")
-        return Collision2D(ea, eb, normal, cb.radius - dist)
-
-    def _resolve(self, col: Collision2D) -> None:
-        rb_a = col.entity_a.get_component(Rigidbody2D)
-        rb_b = col.entity_b.get_component(Rigidbody2D)
-        if rb_a is None or rb_b is None:
-            return
-
-        # positional correction
-        correction = col.normal * col.penetration * 0.5
-        if not rb_a.is_kinematic:
-            col.entity_a.transform.position[:2] -= correction
-            col.entity_a.transform._dirty = True
-        if not rb_b.is_kinematic:
-            col.entity_b.transform.position[:2] += correction
-            col.entity_b.transform._dirty = True
-
-        # velocity reflection
-        rel_vel = rb_b.velocity - rb_a.velocity
-        vel_along = np.dot(rel_vel, col.normal)
-        if vel_along > 0:
-            return
-        restitution = 0.3
-        impulse = -(1 + restitution) * vel_along / (1 / rb_a.mass + 1 / rb_b.mass)
-        imp_vec = impulse * col.normal
-        if not rb_a.is_kinematic:
-            rb_a.velocity -= imp_vec / rb_a.mass
-        if not rb_b.is_kinematic:
-            rb_b.velocity += imp_vec / rb_b.mass
+    @classmethod
+    def from_dict(cls, data: dict) -> "CircleCollider2D":
+        c = cls(data.get("radius", 0.5))
+        c.enabled    = data.get("enabled", True)
+        c.is_trigger = data.get("is_trigger", False)
+        return c

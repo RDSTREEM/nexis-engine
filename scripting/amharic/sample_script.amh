@@ -1,0 +1,32 @@
+# sample_script.amh
+# ናሙና ስክሪፕት — ለ NEXIS ጨዋታ ሞተር
+# Sample script demonstrating the Amharic scripting language
+
+ክፍል ስክሪፕት:
+
+    ተግባር on_start(self):
+        self.ፍጥነት = 5.0
+        self.ዝላይ_ኃይል = 8.0
+        self.መሬት_ላይ = እውነት
+        አትም("ጨዋታ ጀመረ!")
+
+    ተግባር on_update(self, dt):
+        # ግቤት — ግራ/ቀኝ እንቅስቃሴ
+        ከሆነ Input.get_key("d") ወይም Input.get_key("Right"):
+            self.entity.transform.position[0] += self.ፍጥነት * dt
+        ያለዚያ Input.get_key("a") ወይም Input.get_key("Left"):
+            self.entity.transform.position[0] -= self.ፍጥነት * dt
+
+        # ዝላይ
+        ከሆነ Input.get_key_down("space") እና self.መሬት_ላይ:
+            rb = self.entity.get_component("Rigidbody2D")
+            ከሆነ rb አይደለም ምንም:
+                rb.velocity[1] = self.ዝላይ_ኃይል
+                self.መሬት_ላይ = ሐሰት
+
+    ተግባር on_stop(self):
+        አትም("ጨዋታ ተቆሟል")
+
+    ተግባር on_input(self, key, pressed):
+        ከሆነ key == "escape" እና pressed:
+            Events.emit("quit_game", ምንም)
