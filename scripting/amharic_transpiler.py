@@ -1,168 +1,151 @@
 """
 amharic_transpiler.py
-Updated entry point that uses the full Lark-based pipeline.
-Replaces the old regex keyword-substitution stub.
-
-Pipeline:
-  .amh source
-    → parser.parse()        (Lark LALR → AST)
-    → codegen.generate()    (AST → Python source)
-    → error_reporter        (friendly bilingual errors)
-    → returned to script_runner for sandbox execution
+Full Amharic scripting — EVERYTHING is in Amharic.
+This includes: self → ራስ, entity → ነፍስ, on_start → ሲጀምር, etc.
+Also handles engine API remapping: Input → ግቤት, Time → ጊዜ, etc.
 """
+
 from __future__ import annotations
-from pathlib import Path
-from typing import Optional
+import re
 
-# Try the full pipeline first; fall back to legacy regex if Lark unavailable
-try:
-    from scripting.amharic.parser       import parse
-    from scripting.amharic.codegen      import generate
-    from scripting.amharic.error_reporter import (
-        from_lark_exception, from_python_exception,
-        validate_script_class, AmharicError,
-    )
-    _FULL_PIPELINE = True
-except ImportError:
-    _FULL_PIPELINE = False
+# ── Core language keywords ─────────────────────────────────────────────────
+_KEYWORDS = [
+    ("ለእያንዳንዱ", "for"),
+    ("ምንም_ሳይሆን", "pass"),
+    ("ያለዚያም", "elif"),
+    ("ካልሆነ", "else"),
+    ("እስካለ", "while"),
+    ("ወይም", "or"),
+    ("አይደለም", "not"),
+    ("አቁም", "break"),
+    ("ቀጥል", "continue"),
+    ("አስገባ", "import"),
+    ("እንደ", "as"),
+    ("ሞክር", "try"),
+    ("ያዝ", "except"),
+    ("በመጨረሻ", "finally"),
+    ("ከፍ", "raise"),
+    ("ከጋራ", "global"),
+    ("ከሆነ", "if"),
+    ("ካርታ", "return"),
+    ("ተግባር", "def"),
+    ("ክፍል", "class"),
+    ("ውስጥ", "in"),
+    ("እውነት", "True"),
+    ("ሐሰት", "False"),
+    ("ምንም", "None"),
+    ("አትም", "print"),
+    ("እና", "and"),
+    ("ያለዚያ", "elif"),  # alias
+    ("ከ", "from"),
+]
 
-# ── Stdlib path ──────────────────────────────────────────────────────────────
+# ── self / entity / lifecycle method names ────────────────────────────────
+_IDENTIFIER_MAP = {
+    # self
+    "ራስ": "self",
+    # lifecycle
+    "ሲጀምር": "on_start",
+    "ሲዘምን": "on_update",
+    "ሲቆም": "on_stop",
+    "ሲገቡ": "on_input",
+    "ሲጋጩ": "on_collision_enter",
+    "ሲለያዩ": "on_collision_exit",
+    # entity access
+    "ነፍስ": "entity",
+    # transform
+    "ቦታ": "transform",
+    "ቦታ_ቁ": "position",
+    "ሽክርክሪ": "rotation",
+    "ልኬት": "scale",
+    # engine APIs (class names — always capitalized in Python)
+    "ግቤት": "Input",
+    "ጊዜ": "Time",
+    "ክስተቶች": "Events",
+    "ትዕይንቶች": "SceneManager",
+    "ቅድመ_ቅርጾች": "Prefabs",
+    "ዕቃዎች": "Assets",
+    # Input methods
+    "ቁልፍ_ተጫነ": "get_key",
+    "ቁልፍ_ወረደ": "get_key_down",
+    "ቁልፍ_ተለቀቀ": "get_key_up",
+    "አጥ_ቁልፍ": "get_axis",
+    "አይጥ_ቦታ": "get_mouse_position",
+    "አይጥ_ጠቅ": "get_mouse_button",
+    "ሸብልሎ": "get_scroll",
+    # Time fields
+    "ዴልታ_ጊዜ": "delta_time",
+    "ጠቅላላ_ጊዜ": "elapsed",
+    "ፍሬም_ቁጥር": "frame_count",
+    "ፍሬም_ፍጥነት": "fps",
+    # Events
+    "ምልክት_ላክ": "emit",
+    "ምልክት_ስማ": "on",
+    "ምልክት_ዘጋ": "off",
+    # Audio
+    "ተጫወት": "play",
+    "አቁም_ድምፅ": "stop",
+    "አቁም_ሁሉ": "pause",
+    # Physics
+    "ፍጥነት": "velocity",
+    "ኃይል_ጨምር": "apply_force",
+    "ምት_ጨምር": "apply_impulse",
+    "መሬት_ላይ": "grounded",
+    # Math
+    "ፍጹም": "abs",
+    "ካርስ": "sqrt",
+    "ሳይን": "sin",
+    "ኮሳይን": "cos",
+    "ታንጀንት": "tan",
+    "ጣሪያ": "max",
+    "ወለል": "min",
+    "ርዝማኔ": "len",
+    "ክልል": "range",
+    # Component getters (common pattern)
+    "ክፍል_አምጣ": "get_component",
+    "ክፍል_ጨምር": "add_component",
+    "ክፍል_አለ": "has_component",
+    # Scene
+    "ትዕይንት_ጫን": "load",
+    "ትዕይንት_ፍጠር": "create_entity",
+    "ነፍስ_አግኝ": "get_entity",
+    "ነፍስ_ጨምር": "add_entity",
+    # common attributes
+    "ስም": "name",
+    "ነቅቷል": "enabled",
+    "መለያ": "tags",
+    "ልጆች": "children",
+    "ወላጅ": "parent",
+}
 
-_STDLIB_PATH = Path(__file__).parent / "amharic" / "stdlib.amh"
-
-
-def _load_stdlib() -> str:
-    if _STDLIB_PATH.exists():
-        return _STDLIB_PATH.read_text(encoding="utf-8")
-    return ""
-
-
-# ── Public API ───────────────────────────────────────────────────────────────
-
-class TranspileResult:
-    def __init__(self, python_src: str = "", error: str = "",
-                 success: bool = False):
-        self.python_src = python_src
-        self.error      = error
-        self.success    = success
-
-    def __bool__(self) -> bool:
-        return self.success
-
-
-def transpile(amharic_source: str, filename: str = "<script>") -> TranspileResult:
-    """
-    Transpile Amharic source to Python.
-    Returns TranspileResult with .python_src and .error.
-    """
-    if _FULL_PIPELINE:
-        return _transpile_full(amharic_source, filename)
-    else:
-        return _transpile_legacy(amharic_source, filename)
-
-
-def transpile_file(path: str | Path) -> TranspileResult:
-    """Load a .amh file and transpile it."""
-    p = Path(path)
-    if not p.exists():
-        return TranspileResult(error=f"File not found: {p}", success=False)
-    src = p.read_text(encoding="utf-8")
-    return transpile(src, filename=str(p))
-
-
-# ── Full pipeline ────────────────────────────────────────────────────────────
-
-def _transpile_full(source: str, filename: str) -> TranspileResult:
-    # Prepend stdlib
-    stdlib_src = _load_stdlib()
-    full_src   = (stdlib_src + "\n\n" + source).strip()
-
-    try:
-        ast   = parse(full_src)
-        py    = generate(ast)
-    except SyntaxError as e:
-        return TranspileResult(error=str(e), success=False)
-    except Exception as e:
-        try:
-            err = from_lark_exception(e)
-            return TranspileResult(error=err.full_message(), success=False)
-        except Exception:
-            return TranspileResult(error=f"Transpile error: {e}", success=False)
-
-    # Validate Script class present
-    class_err = validate_script_class(py)
-    if class_err:
-        return TranspileResult(error=class_err.full_message(), success=False)
-
-    # Rename Amharic class name ስክሪፕት → Script for the sandbox
-    py = py.replace("class ስክሪፕት", "class Script")
-
-    return TranspileResult(python_src=py, success=True)
-
-
-# ── Legacy regex fallback (kept for when Lark is not installed) ──────────────
-
-_KEYWORD_MAP = {
-    # classes / functions
-    "ክፍል":        "class",
-    "ተግባር":       "def",
-    "ካርታ":        "return",
-    # control flow
-    "ከሆነ":        "if",
-    "ያለዚያ":       "elif",
-    "ካልሆነ":       "else",
-    "እስካለ":       "while",
-    "ለእያንዳንዱ":   "for",
-    "ውስጥ":        "in",
-    "አቁም":        "break",
-    "ቀጥል":        "continue",
-    "ምንም_ሳይሆን":   "pass",
-    # logical
-    "እና":         "and",
-    "ወይም":        "or",
-    "አይደለም":     "not",
-    # literals
-    "እውነት":       "True",
-    "ሐሰት":        "False",
-    "ምንም":        "None",
-    # builtins
-    "አትም":        "print",
-    # exceptions
-    "ሞክር":        "try",
-    "ያዝ":         "except",
-    "በመጨረሻ":     "finally",
-    "ከ":          "from",
-    "አስገባ":       "import",
-    "እንደ":        "as",
-    "ከፍ":         "raise",
-    "ከጋራ":        "global",
-    # script class
-    "ስክሪፕት":      "Script",
+# ── Script class name ─────────────────────────────────────────────────────
+_CLASS_NAME_MAP = {
+    "ስክሪፕት": "Script",
 }
 
 
-def _transpile_legacy(source: str, filename: str) -> TranspileResult:
-    """
-    Simple regex-based keyword substitution — used when Lark is not available.
-    Not a full parser; only handles keyword replacement.
-    """
-    import re
+def transpile(source: str) -> str:
+    """Transpile full Amharic source to valid Python."""
     result = source
-    for amh, eng in sorted(_KEYWORD_MAP.items(), key=lambda x: -len(x[0])):
-        result = re.sub(rf'\b{re.escape(amh)}\b', eng, result)
 
-    if "class Script" not in result:
-        return TranspileResult(
-            error=(
-                "ስክሪፕቱ 'ስክሪፕት' ክፍል (class Script) መያዝ አለበት\n"
-                "Script must define a 'Script' class (ስክሪፕት)"
-            ),
-            success=False,
-        )
-    return TranspileResult(python_src=result, success=True)
+    # 1. Replace language keywords (word-boundary aware)
+    for amh, py in _KEYWORDS:
+        result = re.sub(r"(?<!\w)" + re.escape(amh) + r"(?!\w)", py, result)
 
+    # 2. Replace identifiers (also word-boundary aware)
+    for amh, py in sorted(_IDENTIFIER_MAP.items(), key=lambda x: -len(x[0])):
+        result = re.sub(r"(?<!\w)" + re.escape(amh) + r"(?!\w)", py, result)
 
-# ── Convenience: get keyword map for editor syntax highlighting ───────────────
+    # 3. Replace script class name
+    for amh, py in _CLASS_NAME_MAP.items():
+        result = re.sub(r"(?<!\w)" + re.escape(amh) + r"(?!\w)", py, result)
+
+    return result
+
 
 def get_amharic_keywords() -> list:
-    return list(_KEYWORD_MAP.keys())
+    """Return all Amharic keyword tokens for syntax highlighting."""
+    kws = [k for k, _ in _KEYWORDS]
+    kws += list(_IDENTIFIER_MAP.keys())
+    kws += list(_CLASS_NAME_MAP.keys())
+    return kws

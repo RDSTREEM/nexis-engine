@@ -1,73 +1,151 @@
 """
 script_editor_panel.py
-Script editor with Amharic syntax highlighting.
-Supports both .py (Python) and .amh (Amharic) files.
-Shows transpiled Python output in a split view for .amh files.
+Full Amharic syntax highlighting, live transpile preview pane,
+auto-complete snippet for new .amh files.
 """
+
 from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import (
-    QColor, QFont, QSyntaxHighlighter, QTextCharFormat, QTextDocument,
+    QColor,
+    QFont,
+    QSyntaxHighlighter,
+    QTextCharFormat,
+    QTextDocument,
 )
 from PySide6.QtWidgets import (
-    QDockWidget, QFileDialog, QHBoxLayout, QLabel,
-    QPlainTextEdit, QPushButton, QSplitter, QVBoxLayout, QWidget,
+    QDockWidget,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QPushButton,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
 )
 
+_FONT = QFont("Consolas", 11)
+_FONT.setStyleHint(QFont.Monospace)
 
-# ── Highlighter ───────────────────────────────────────────────────────────────
+
+# ── colour tokens ─────────────────────────────────────────────────────────
+def _fmt(colour: str, bold: bool = False) -> QTextCharFormat:
+    f = QTextCharFormat()
+    f.setForeground(QColor(colour))
+    if bold:
+        f.setFontWeight(700)
+    return f
+
+
+_AMH_KW = _fmt("#c792ea", bold=True)  # purple — Amharic language keywords
+_PY_KW = _fmt("#82aaff", bold=True)  # blue   — Python keywords (allowed too)
+_API_KW = _fmt("#ffcb6b", bold=True)  # gold   — engine API names
+_NUMBER = _fmt("#f78c6c")  # orange
+_STRING = _fmt("#c3e88d")  # green
+_COMMENT = _fmt("#546e7a")  # grey
+_SELF = _fmt("#ff9cac")  # pink  — ራስ / self
+_FUNC_NM = _fmt("#82aaff")  # blue  — function names
+_BOOL = _fmt("#f07178")  # red   — እውነት/ሐሰት/ምንም
+
 
 class _AmharicHighlighter(QSyntaxHighlighter):
     def __init__(self, doc: QTextDocument):
         super().__init__(doc)
+        import re
         from scripting.amharic_transpiler import get_amharic_keywords
 
-        def fmt(hex_color, bold=False):
-            f = QTextCharFormat()
-            f.setForeground(QColor(hex_color))
-            if bold:
-                f.setFontWeight(700)
-            return f
+        all_kws = get_amharic_keywords()
+        from scripting.amharic_transpiler import (
+            _KEYWORDS,
+            _IDENTIFIER_MAP,
+            _CLASS_NAME_MAP,
+        )
 
-        amh_kw  = get_amharic_keywords()
-        py_kw   = ["def","class","if","elif","else","while","for","in",
-                    "return","break","continue","pass","and","or","not",
-                    "True","False","None","import","from","as","try",
-                    "except","finally","raise","global","print","self"]
+        amh_lang = [k for k, _ in _KEYWORDS]
+        amh_api = [k for k in _IDENTIFIER_MAP if k not in ("ራስ",) and k not in amh_lang]
+        amh_bool = ["እውነት", "ሐሰት", "ምንም"]
+        py_kws = [
+            "def",
+            "class",
+            "if",
+            "elif",
+            "else",
+            "while",
+            "for",
+            "in",
+            "return",
+            "break",
+            "continue",
+            "pass",
+            "and",
+            "or",
+            "not",
+            "True",
+            "False",
+            "None",
+            "import",
+            "from",
+            "as",
+            "try",
+            "except",
+            "finally",
+            "raise",
+            "global",
+            "print",
+            "self",
+        ]
 
-        import re
-        self._rules = []
-        # Amharic keywords
-        for kw in amh_kw:
-            self._rules.append((re.compile(rf'\b{re.escape(kw)}\b'),
-                                 fmt("#c792ea", bold=True)))
-        # Python keywords
-        for kw in py_kw:
-            self._rules.append((re.compile(rf'\b{kw}\b'),
-                                 fmt("#82aaff", bold=True)))
-        # Numbers
-        self._rules.append((re.compile(r'\b\d+(\.\d+)?\b'), fmt("#f78c6c")))
+        self._rules: list = []
+
+        # Comments first (highest priority)
+        self._rules.append((re.compile(r"#[^\n]*"), _COMMENT))
+
         # Strings
-        self._rules.append((re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"'), fmt("#c3e88d")))
-        self._rules.append((re.compile(r"'[^'\\]*(?:\\.[^'\\]*)*'"), fmt("#c3e88d")))
-        # Comments
-        self._rules.append((re.compile(r'#[^\n]*'), fmt("#546e7a", bold=False)))
-        # self
-        self._rules.append((re.compile(r'\bself\b'), fmt("#ff9cac")))
-        # Function/class names after def/ተግባር/class/ክፍል
-        self._rules.append((re.compile(
-            r'(?:def|ተግባር|class|ክፍል)\s+([A-Za-z_\u1200-\u137F][A-Za-z0-9_\u1200-\u137F]*)'),
-            fmt("#ffcb6b")))
+        self._rules.append((re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"'), _STRING))
+        self._rules.append((re.compile(r"'[^'\\]*(?:\\.[^'\\]*)*'"), _STRING))
+
+        # Booleans / None
+        for kw in amh_bool:
+            self._rules.append((re.compile(rf"(?<!\w){re.escape(kw)}(?!\w)"), _BOOL))
+
+        # ራስ (self equivalent)
+        self._rules.append((re.compile(r"(?<!\w)ራስ(?!\w)"), _SELF))
+        self._rules.append((re.compile(r"(?<!\w)self(?!\w)"), _SELF))
+
+        # Engine API identifiers
+        for kw in sorted(amh_api, key=len, reverse=True):
+            self._rules.append((re.compile(rf"(?<!\w){re.escape(kw)}(?!\w)"), _API_KW))
+
+        # Amharic language keywords
+        for kw in sorted(amh_lang, key=len, reverse=True):
+            self._rules.append((re.compile(rf"(?<!\w){re.escape(kw)}(?!\w)"), _AMH_KW))
+
+        # Python keywords (allowed as fallback)
+        for kw in py_kws:
+            self._rules.append((re.compile(rf"\b{kw}\b"), _PY_KW))
+
+        # Numbers
+        self._rules.append((re.compile(r"\b\d+(\.\d+)?\b"), _NUMBER))
+
+        # Function/class name after ተግባር/ክፍል/def/class
+        self._rules.append(
+            (
+                re.compile(
+                    r"(?:ተግባር|ክፍል|def|class)\s+"
+                    r"([A-Za-z_\u1200-\u137F\u1380-\u139F][A-Za-z0-9_\u1200-\u137F\u1380-\u139F]*)"
+                ),
+                _FUNC_NM,
+            )
+        )
 
     def highlightBlock(self, text: str) -> None:
-        for pattern, fmt in self._rules:
-            for m in pattern.finditer(text):
-                start = m.start()
-                length = m.end() - start
-                self.setFormat(start, length, fmt)
+        for pat, fmt in self._rules:
+            for m in pat.finditer(text):
+                self.setFormat(m.start(), m.end() - m.start(), fmt)
 
 
 class _PyHighlighter(QSyntaxHighlighter):
@@ -75,223 +153,292 @@ class _PyHighlighter(QSyntaxHighlighter):
         super().__init__(doc)
         import re
 
-        def fmt(hex_color, bold=False):
-            f = QTextCharFormat()
-            f.setForeground(QColor(hex_color))
-            if bold: f.setFontWeight(700)
-            return f
-
-        kw = ["def","class","if","elif","else","while","for","in","return",
-              "break","continue","pass","and","or","not","True","False","None",
-              "import","from","as","try","except","finally","raise","global","print","self"]
+        kws = [
+            "def",
+            "class",
+            "if",
+            "elif",
+            "else",
+            "while",
+            "for",
+            "in",
+            "return",
+            "break",
+            "continue",
+            "pass",
+            "and",
+            "or",
+            "not",
+            "True",
+            "False",
+            "None",
+            "import",
+            "from",
+            "as",
+            "try",
+            "except",
+            "finally",
+            "raise",
+            "global",
+            "print",
+        ]
         self._rules = []
-        for k in kw:
-            self._rules.append((re.compile(rf'\b{k}\b'), fmt("#82aaff", bold=True)))
-        self._rules.append((re.compile(r'\b\d+(\.\d+)?\b'),         fmt("#f78c6c")))
-        self._rules.append((re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"'), fmt("#c3e88d")))
-        self._rules.append((re.compile(r"'[^'\\]*(?:\\.[^'\\]*)*'"), fmt("#c3e88d")))
-        self._rules.append((re.compile(r'#[^\n]*'),                   fmt("#546e7a")))
-        self._rules.append((re.compile(r'\bself\b'),                  fmt("#ff9cac")))
+        self._rules.append((re.compile(r"#[^\n]*"), _COMMENT))
+        self._rules.append((re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"'), _STRING))
+        self._rules.append((re.compile(r"'[^'\\]*(?:\\.[^'\\]*)*'"), _STRING))
+        self._rules.append((re.compile(r"(?<!\w)self(?!\w)"), _SELF))
+        for kw in kws:
+            self._rules.append((re.compile(rf"\b{kw}\b"), _PY_KW))
+        self._rules.append((re.compile(r"\b\d+(\.\d+)?\b"), _NUMBER))
 
     def highlightBlock(self, text: str) -> None:
-        for pattern, fmt in self._rules:
-            for m in pattern.finditer(text):
-                self.setFormat(m.start(), m.end()-m.start(), fmt)
+        for pat, fmt in self._rules:
+            for m in pat.finditer(text):
+                self.setFormat(m.start(), m.end() - m.start(), fmt)
 
 
-# ── Panel ─────────────────────────────────────────────────────────────────────
+# ── Default new-file templates ─────────────────────────────────────────────
+_NEW_AMH = """\
+# ስክሪፕት.amh — አዲስ ስክሪፕት
 
+ክፍል ስክሪፕት:
+
+    ተግባር ሲጀምር(ራስ, ነፍስ):
+        አትም("ሰላም ዓለም!")
+
+    ተግባር ሲዘምን(ራስ, ነፍስ, dt):
+        ምንም_ሳይሆን
+
+    ተግባር ሲቆም(ራስ, ነፍስ):
+        ምንም_ሳይሆን
+
+    ተግባር ሲገቡ(ራስ, ነፍስ, ቁልፍ, ተጫነ):
+        ምንም_ሳይሆን
+"""
+
+_NEW_PY = """\
+# script.py
+
+class Script:
+
+    def on_start(self, entity):
+        print("Hello!")
+
+    def on_update(self, entity, dt):
+        pass
+
+    def on_stop(self, entity):
+        pass
+
+    def on_input(self, entity, key, pressed):
+        pass
+"""
+
+
+# ── Panel ──────────────────────────────────────────────────────────────────
 class ScriptEditorPanel(QDockWidget):
     def __init__(self, app, parent=None):
         super().__init__("Script Editor", parent)
         self.app = app
-        self._current_path: Optional[Path] = None
+        self._path: Optional[Path] = None
         self._modified = False
         self.setAllowedAreas(Qt.BottomDockWidgetArea | Qt.RightDockWidgetArea)
 
         root = QWidget()
         vbox = QVBoxLayout(root)
         vbox.setContentsMargins(4, 4, 4, 4)
-        vbox.setSpacing(4)
-
-        # Toolbar
-        toolbar = QHBoxLayout()
-        self._file_label = QLabel("(no file open)")
-        self._file_label.setStyleSheet("color:#888;font-size:10px;")
-        toolbar.addWidget(self._file_label)
-        toolbar.addStretch()
-
-        for label, fn in [
-            ("New",       self._on_new),
-            ("Open…",     self._on_open),
-            ("Save",      self._on_save),
-            ("Save As…",  self._on_save_as),
-            ("▶ Run",     self._on_run),
-        ]:
-            b = QPushButton(label)
-            b.clicked.connect(fn)
-            toolbar.addWidget(b)
-
-        vbox.addLayout(toolbar)
-
-        # Split: editor left, transpiled output right (for .amh)
-        self._splitter = QSplitter(Qt.Horizontal)
-
-        font = QFont("Consolas,Courier New,monospace", 11)
-
-        self._editor = QPlainTextEdit()
-        self._editor.setFont(font)
-        self._editor.setLineWrapMode(QPlainTextEdit.NoWrap)
-        self._editor.setStyleSheet("background:#1a1a2e;color:#cdd3de;border:none;")
-        self._editor.textChanged.connect(self._on_text_changed)
-        self._splitter.addWidget(self._editor)
-
-        right = QWidget()
-        rvbox = QVBoxLayout(right)
-        rvbox.setContentsMargins(0, 0, 0, 0)
-        rvbox.addWidget(QLabel("Transpiled Python:"))
-        self._transpile_view = QPlainTextEdit()
-        self._transpile_view.setFont(font)
-        self._transpile_view.setReadOnly(True)
-        self._transpile_view.setStyleSheet("background:#0d1117;color:#7ec8e3;border:none;")
-        _PyHighlighter(self._transpile_view.document())
-        rvbox.addWidget(self._transpile_view)
-        self._splitter.addWidget(right)
-        self._splitter.setSizes([600, 400])
-        self._right_panel = right
-        self._right_panel.setVisible(False)
-
-        vbox.addWidget(self._splitter)
-
-        # Status bar
-        self._status = QLabel("")
-        self._status.setStyleSheet("color:#888;font-size:10px;")
-        vbox.addWidget(self._status)
-
+        vbox.setSpacing(3)
         self.setWidget(root)
 
-        # Auto-transpile timer (debounce 800ms)
-        self._transpile_timer = QTimer()
-        self._transpile_timer.setSingleShot(True)
-        self._transpile_timer.timeout.connect(self._auto_transpile)
+        # ── toolbar ───────────────────────────────────────────────────
+        tbar = QHBoxLayout()
+        self._file_lbl = QLabel("(no file)")
+        self._file_lbl.setStyleSheet("color:#666; font-size:10px;")
+        tbar.addWidget(self._file_lbl, 1)
 
-    # ------------------------------------------------------------------
+        btn_style = (
+            "QPushButton{background:#2a2a2a;border:1px solid #3a3a3a;"
+            "border-radius:3px;color:#ccc;padding:2px 8px;font-size:10px;}"
+            "QPushButton:hover{background:#333;}"
+        )
+        for lbl, fn in [
+            ("New .amh", self._new_amh),
+            ("New .py", self._new_py),
+            ("Open…", self._open),
+            ("Save", self._save),
+            ("▶ Run", self._run),
+        ]:
+            b = QPushButton(lbl)
+            b.setStyleSheet(btn_style)
+            b.clicked.connect(fn)
+            tbar.addWidget(b)
+        vbox.addLayout(tbar)
+
+        # ── split: editor | transpile output ─────────────────────────
+        self._split = QSplitter(Qt.Horizontal)
+
+        self._editor = QPlainTextEdit()
+        self._editor.setFont(_FONT)
+        self._editor.setLineWrapMode(QPlainTextEdit.NoWrap)
+        self._editor.setStyleSheet(
+            "QPlainTextEdit{background:#1a1a2e;color:#cdd3de;"
+            "border:none;selection-background-color:#2d4a7a;}"
+        )
+        self._editor.textChanged.connect(self._on_changed)
+        self._split.addWidget(self._editor)
+
+        # right pane — only visible for .amh
+        right = QWidget()
+        rv = QVBoxLayout(right)
+        rv.setContentsMargins(0, 0, 0, 0)
+        rv.setSpacing(2)
+        lbl = QLabel("Transpiled Python")
+        lbl.setStyleSheet("color:#555;font-size:10px;padding:2px 4px;")
+        rv.addWidget(lbl)
+        self._out = QPlainTextEdit()
+        self._out.setFont(_FONT)
+        self._out.setReadOnly(True)
+        self._out.setStyleSheet(
+            "QPlainTextEdit{background:#0d1117;color:#5aadce;" "border:none;}"
+        )
+        _PyHighlighter(self._out.document())
+        rv.addWidget(self._out)
+        self._right = right
+        self._right.setVisible(False)
+        self._split.addWidget(right)
+        self._split.setSizes([600, 400])
+
+        vbox.addWidget(self._split, 1)
+
+        # status
+        self._status = QLabel("")
+        self._status.setStyleSheet("color:#666;font-size:9px;padding:1px 4px;")
+        vbox.addWidget(self._status)
+
+        # debounce timer for live transpile
+        self._tp_timer = QTimer()
+        self._tp_timer.setSingleShot(True)
+        self._tp_timer.timeout.connect(self._transpile_preview)
+
+    # ── Public ────────────────────────────────────────────────────────
 
     def open_file(self, path: str | Path) -> None:
         p = Path(path)
         if not p.exists():
             return
-        self._current_path = p
+        self._path = p
         self._editor.blockSignals(True)
         self._editor.setPlainText(p.read_text(encoding="utf-8"))
         self._editor.blockSignals(False)
-
-        # Pick highlighter
+        self._apply_highlighter()
+        self._modified = False
+        self._file_lbl.setText(p.name)
+        self._status_ok(f"Opened {p.name}")
         if p.suffix == ".amh":
-            _AmharicHighlighter(self._editor.document())
-            self._right_panel.setVisible(True)
-            self._auto_transpile()
-        else:
-            _PyHighlighter(self._editor.document())
-            self._right_panel.setVisible(False)
+            self._transpile_preview()
 
-        self._file_label.setText(str(p))
-        self._modified = False
-        self._set_status(f"Opened {p.name}")
+    # ── Toolbar actions ───────────────────────────────────────────────
 
-    # ------------------------------------------------------------------
-
-    def _on_text_changed(self) -> None:
-        self._modified = True
-        if self._current_path and self._current_path.suffix == ".amh":
-            self._transpile_timer.start(800)
-
-    def _auto_transpile(self) -> None:
-        src = self._editor.toPlainText()
-        from scripting.amharic_transpiler import transpile
-        result = transpile(src)
-        if result.success:
-            self._transpile_view.setPlainText(result.python_src)
-            self._set_status("✓ Transpiled OK")
-        else:
-            self._transpile_view.setPlainText(f"# ── Error ──\n# {result.error}")
-            self._set_status(f"✗ {result.error.splitlines()[0][:80]}")
-
-    def _on_new(self) -> None:
-        self._current_path = None
-        self._editor.clear()
-        self._transpile_view.clear()
-        self._file_label.setText("(new file)")
-        self._modified = False
-        default = (
-            "ክፍል ስክሪፕት:\n\n"
-            "    ተግባር on_start(self):\n"
-            "        አትም(\"ሰላም ዓለም!\")\n\n"
-            "    ተግባር on_update(self, dt):\n"
-            "        ምንም_ሳይሆን\n\n"
-            "    ተግባር on_stop(self):\n"
-            "        ምንም_ሳይሆን\n"
-        )
-        self._editor.setPlainText(default)
+    def _new_amh(self):
+        self._path = None
+        self._editor.setPlainText(_NEW_AMH)
         _AmharicHighlighter(self._editor.document())
-        self._right_panel.setVisible(True)
+        self._right.setVisible(True)
+        self._file_lbl.setText("new file.amh")
+        self._transpile_preview()
 
-    def _on_open(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Open Script",
-            str(self.app.project.project_root or ""),
-            "Scripts (*.py *.amh);;Python (*.py);;Amharic (*.amh);;All (*)")
-        if path:
-            self.open_file(path)
+    def _new_py(self):
+        self._path = None
+        self._editor.setPlainText(_NEW_PY)
+        _PyHighlighter(self._editor.document())
+        self._right.setVisible(False)
+        self._file_lbl.setText("new file.py")
 
-    def _on_save(self) -> None:
-        if self._current_path:
-            self._current_path.write_text(
-                self._editor.toPlainText(), encoding="utf-8")
-            self._modified = False
-            self._set_status(f"Saved {self._current_path.name}")
-        else:
-            self._on_save_as()
+    def _open(self):
+        p, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Script",
+            str(getattr(self.app.project, "project_root", "") or ""),
+            "Scripts (*.py *.amh);;Amharic (*.amh);;Python (*.py);;All (*)",
+        )
+        if p:
+            self.open_file(p)
 
-    def _on_save_as(self) -> None:
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Save Script",
-            str(self.app.project.project_root or ""),
-            "Amharic Script (*.amh);;Python Script (*.py);;All (*)")
-        if path:
-            self._current_path = Path(path)
-            self._on_save()
-
-    def _on_run(self) -> None:
-        """Transpile if .amh and reload the script on the selected entity."""
-        if self._current_path:
-            self._on_save()
-
-        src = self._editor.toPlainText()
-        p   = self._current_path
-
-        if p and p.suffix == ".amh":
-            from scripting.amharic_transpiler import transpile
-            result = transpile(src)
-            if not result.success:
-                self._set_status(f"✗ {result.error.splitlines()[0]}")
-                self.app.console.error(result.error)
+    def _save(self):
+        if self._path is None:
+            suffix = ".amh" if self._right.isVisible() else ".py"
+            p, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save Script",
+                str(getattr(self.app.project, "project_root", "") or ""),
+                f"Script (*{suffix});;All (*)",
+            )
+            if not p:
                 return
-            py_src = result.python_src
+            self._path = Path(p)
+        self._path.write_text(self._editor.toPlainText(), encoding="utf-8")
+        self._modified = False
+        self._file_lbl.setText(self._path.name)
+        self._status_ok(f"Saved {self._path.name}")
+
+    def _run(self):
+        if self._path:
+            self._save()
+        src = self._editor.toPlainText()
+        is_amh = (
+            self._path and self._path.suffix == ".amh"
+            if self._path
+            else self._right.isVisible()
+        )
+        if is_amh:
+            from scripting.amharic_transpiler import transpile
+
+            py_src = transpile(src)
         else:
             py_src = src
 
-        # Try to run on the selected entity's ScriptComponent
         e = self.app.selector.selected_entity
         if e:
             from core.script_component import ScriptComponent
+
             sc = e.get_component(ScriptComponent)
             if sc:
                 sc.execute_source(py_src)
-                self._set_status(f"▶ Running on '{e.name}'")
+                self._status_ok(f"Running on '{e.name}'")
                 return
+        self._status_err("Select an entity with a ScriptComponent first")
 
-        self._set_status("No entity with ScriptComponent selected")
+    # ── Internal ──────────────────────────────────────────────────────
 
-    def _set_status(self, msg: str) -> None:
+    def _on_changed(self):
+        self._modified = True
+        if self._right.isVisible():
+            self._tp_timer.start(700)
+
+    def _apply_highlighter(self):
+        if self._path and self._path.suffix == ".amh":
+            _AmharicHighlighter(self._editor.document())
+            self._right.setVisible(True)
+        else:
+            _PyHighlighter(self._editor.document())
+            self._right.setVisible(False)
+
+    def _transpile_preview(self):
+        src = self._editor.toPlainText()
+        from scripting.amharic_transpiler import transpile
+
+        try:
+            py = transpile(src)
+            self._out.setPlainText(py)
+            self._status_ok("✓ Transpile OK")
+        except Exception as e:
+            self._out.setPlainText(f"# Error\n# {e}")
+            self._status_err(str(e)[:100])
+
+    def _status_ok(self, msg: str):
         self._status.setText(msg)
+        self._status.setStyleSheet("color:#5a5;font-size:9px;padding:1px 4px;")
+
+    def _status_err(self, msg: str):
+        self._status.setText(msg)
+        self._status.setStyleSheet("color:#f55;font-size:9px;padding:1px 4px;")
