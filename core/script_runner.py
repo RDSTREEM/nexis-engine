@@ -82,7 +82,10 @@ class ScriptRunner:
             for sc in entity.get_components(ScriptComponent):
                 if not sc.enabled:
                     continue
-                sc._sandbox = self._sandbox  # inject sandbox
+                if sc._sandbox is not self._sandbox:
+                    sc._sandbox = self._sandbox
+                    if sc._loaded:
+                        sc.reload()
                 if not sc._loaded:
                     sc.load()
                 self._safe_call(sc, "on_start", entity)

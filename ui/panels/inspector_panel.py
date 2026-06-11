@@ -296,9 +296,25 @@ class InspectorPanel(QDockWidget):
         name_edit.editingFinished.connect(_commit)
         row.addWidget(name_edit, 1)
 
-        tag_lbl = QLabel(", ".join(e.tags) if e.tags else "Untagged")
-        tag_lbl.setStyleSheet("color:#666; font-size:9px;")
-        row.addWidget(tag_lbl)
+        # Tags button - opens tag selection dialog
+        tag_btn = QPushButton("Tags")
+        tag_btn.setFixedWidth(50)
+        tag_btn.setStyleSheet(
+            "QPushButton{background:#1e3a1e;border:1px solid #2d6b2d;"
+            "color:#55cc55;font-size:9px;border-radius:3px;padding:2px 6px;}"
+            "QPushButton:hover{background:#254a25;}"
+        )
+
+        def _edit_tags():
+            from ui.panels.tag_selector import TagSelectorDialog
+
+            dlg = TagSelectorDialog(e.tags, self.app.project, self)
+            if dlg.exec():
+                e.tags = dlg.selected_tags
+                tag_btn.setText(f"Tags ({len(e.tags)})" if e.tags else "Tags")
+
+        tag_btn.clicked.connect(_edit_tags)
+        row.addWidget(tag_btn)
 
         self._vbox.addWidget(card)
 

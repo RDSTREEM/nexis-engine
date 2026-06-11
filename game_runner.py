@@ -49,6 +49,8 @@ class GameWidget(QOpenGLWidget):
     def __init__(self, project_path: str, parent=None):
         super().__init__(parent)
         self.setFocusPolicy(Qt.StrongFocus)
+        self.setFocus()
+        self.grabKeyboard()
         self.setMouseTracking(True)
         self._project_path = Path(project_path)
         self._ctx = None
@@ -93,6 +95,7 @@ class GameWidget(QOpenGLWidget):
             self._ptype = pdata.get("type", "3D")
             # Start
             self._Time.start()
+            self._init_physics()
             self._scene.start()
             self._ready = True
             self._console.info(f"Game started: {pdata.get('name','')}")
@@ -125,14 +128,20 @@ class GameWidget(QOpenGLWidget):
         if self._ctx:
             self._ctx.viewport = (0, 0, w, h)
 
-    # ── Game loop ────────────────────────────────────────────────────────
+    def showEvent(self, event):
+        self.setFocus()        self.grabKeyboard()        self.activateWindow()
+        super().showEvent(event)
+
+    # ── Game loop ──────────────────────────────────────────────────────
 
     def _tick(self):
         if not self._ready:
             return
         self._Input.begin_frame()
         dt = self._Time.tick()
-        self._physics.step(self._scene, dt)
+        self._physics.step(dt)
+        self._sync_physics_to_transforms()
+        self._fire_collision_callbacks()
         self._scene.update(dt)
         self.update()
 
@@ -161,7 +170,83 @@ class GameWidget(QOpenGLWidget):
                     sc.on_input(ev.key(), False)
         super().keyReleaseEvent(ev)
 
+    def _init_physics(self) -> None:
+        from core.physics_2d import Rigidbody2D, BoxCollider2D, CircleCollider2D
+
+        if self._scene is None:
+            return
+
+        self._physics = type(self._physics)(gravity=self._physics.gravity)
+        for entity in self._scene.all_entities():
+            rb = entity.get_component(Rigidbody2D)
+            if rb is None:
+                continue
+            pos = entity.transform.position
+            self._physics.add_body(
+                entity.id,
+                pos[0],
+                pos[1],
+                mass=rb.mass,
+                is_kinematic=rb.is_kinematic,
+                gravity_scale=rb.gravity_scale,
+                drag=rb.drag,
+            )
+            box = entity.get_component(BoxCollider2D)
+            cir = entity.get_component(CircleCollider2D)
+            if box:
+                self._physics.set_box_shape(
+                    entity.id, box.width, box.height, box.is_trigger
+                )
+            elif cir:
+                self._physics.set_circle_shape(entity.id, cir.radius, cir.is_trigger)
+        if self._scene is not None:
+            self._scene._physics_world = self._physics
+
+    def _sync_physics_to_transforms(self) -> None:
+        from core.physics_2d import Rigidbody2D
+
+        if self._scene is None:
+            return
+
+        for entity in self._scene.all_entities():
+            rb = entity.get_component(Rigidbody2D)
+            if rb is None:
+                continue
+            body = self._physics.get_body(entity.id)
+            if body is None:
+                continue
+            entity.transform.position[0] = body.position[0]
+            entity.transform.position[1] = body.position[1]
+            entity.transform._dirty = True
+            rb.velocity = list(body.velocity)
+
+    def _fire_collision_callbacks(self) -> None:
+        from core.script_component import ScriptComponent
+
+        if self._scene is None:
+            return
+        events = getattr(self._physics, "_collision_events", [])
+        if not events:
+            return
+        for id_a, id_b, enter in list(events):
+            for eid, other_eid in [(id_a, id_b), (id_b, id_a)]:
+                entity = self._scene.get_entity_by_id(eid)
+                other = self._scene.get_entity_by_id(other_eid)
+                if entity is None or other is None:
+                    continue
+                sc = entity.get_component(ScriptComponent)
+                if sc and sc._instance:
+                    method = "on_collision_enter" if enter else "on_collision_exit"
+                    fn = getattr(sc._instance, method, None)
+                    if fn:
+                        try:
+                            fn(other)
+                        except Exception as e:
+                            self._console.error(f"[{entity.name}] {method} error: {e}")
+        self._physics._collision_events.clear()
+
     def mousePressEvent(self, ev):
+        self.setFocus()
         self._Input.on_mouse_press(ev.button().value)
 
     def mouseReleaseEvent(self, ev):

@@ -229,6 +229,7 @@ class MainWindow(QMainWindow):
 
         self.toolbar = ViewportToolbar(self)
         self.viewport = ViewportWidget(self.app)
+        self.toolbar._viewport = self.viewport  # Set reference for gizmo access
 
         self.toolbar.sig_cam_toggle.connect(lambda m: self.viewport.camera.set_mode(m))
         self.toolbar.sig_play.connect(self._on_play)
@@ -257,6 +258,7 @@ class MainWindow(QMainWindow):
         self._save_act.setEnabled(on)
         self._close_act.setEnabled(on)
         self.menuBar().setVisible(on)
+        self.toolbar.enable_play_controls(on)
 
     def show_start_screen(self) -> None:
         self._editor_mode(False)

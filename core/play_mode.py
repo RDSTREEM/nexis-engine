@@ -105,9 +105,9 @@ class PlayMode:
 
         from core.time_manager import Time
 
-        Time._delta_time = dt
-        Time._elapsed += dt
-        Time._frame += 1
+        Time.delta_time = dt
+        Time.elapsed += dt
+        Time.frame_count += 1
 
         scene = self.app.active_scene
         if scene is None:

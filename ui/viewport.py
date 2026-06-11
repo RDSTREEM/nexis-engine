@@ -29,6 +29,8 @@ class ViewportWidget(QOpenGLWidget):
         self.app = app
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
+        self.setFocus()
+        self.grabKeyboard()
 
         self.camera = EditorCamera(self.app.console, mode="3d")
         self.debug_draw = DebugDraw()
@@ -130,6 +132,11 @@ class ViewportWidget(QOpenGLWidget):
     def resizeGL(self, w, h):
         if self.ctx:
             self.ctx.viewport = (0, 0, w, h)
+
+    def showEvent(self, event):
+        self.setFocus()
+        self.grabKeyboard()
+        super().showEvent(event)
 
     # ── Tick ─────────────────────────────────────────────────────────────
 

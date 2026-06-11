@@ -45,7 +45,14 @@ class CameraComponent(Component):
         transform = self.entity.transform
         pos = transform.position.copy()
 
-        # derive forward from rotation (simplified: use -Z as forward rotated by euler)
+        # For orthographic (2D), look from XY position down -Z axis
+        if self.projection == "orthographic":
+            # Camera at (pos.x, pos.y, pos.z), looking down -Z
+            target = pos + np.array([0.0, 0.0, -1.0], dtype="f4")
+            up = np.array([0.0, 1.0, 0.0], dtype="f4")
+            return look_at(pos, target, up)
+
+        # For perspective, derive forward from rotation (simplified: use -Z as forward rotated by euler)
         import math
 
         rx = math.radians(transform.rotation[0])

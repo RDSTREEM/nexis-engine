@@ -31,6 +31,7 @@ class ScriptComponent(Component):
         self._instance: Any = None
         self._error: str = ""
         self._loaded: bool = False
+        self._sandbox: dict = {}
 
     # ------------------------------------------------------------------
     # Loading
@@ -53,7 +54,17 @@ class ScriptComponent(Component):
                 source = transpile(source)
 
             code = compile(source, str(path), "exec")
-            ns = {}
+            ns = dict(self._sandbox) if self._sandbox else {}
+
+            if "Input" not in ns:
+                from core.input_manager import Input
+
+                ns["Input"] = Input
+            if "Qt" not in ns:
+                from PySide6.QtCore import Qt
+
+                ns["Qt"] = Qt
+
             exec(code, ns)
 
             cls = ns.get("Script")

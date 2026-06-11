@@ -81,6 +81,7 @@ class ViewportToolbar(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._viewport = None  # Set after toolbar is created
         self.setFixedHeight(38)
         self.setStyleSheet("background:#141414;border-bottom:1px solid #1e1e1e;")
 
@@ -193,6 +194,5 @@ class ViewportToolbar(QWidget):
         for i, b in enumerate(self._gizmo_btns):
             b.setChecked(modes[i] == mode)
         # forward to viewport gizmo
-        mw = self.parent()
-        if hasattr(mw, "viewport") and hasattr(mw.viewport, "gizmo"):
-            mw.viewport.gizmo.set_mode(mode)
+        if self._viewport and hasattr(self._viewport, "gizmo"):
+            self._viewport.gizmo.set_mode(mode)

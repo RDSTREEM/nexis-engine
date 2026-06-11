@@ -40,6 +40,7 @@ class ProjectManager:
 
         self.active_scene: Optional[Scene] = None
         self.is_open: bool = False
+        self._project_settings: dict = {}  # Cached project settings
 
     # ------------------------------------------------------------------
     # Create
@@ -165,6 +166,7 @@ class ProjectManager:
         self.project_root = None
         self.active_scene = None
         self.is_open = False
+        self._project_settings = {}
         self.app.console.info("Project closed.")
 
     # ------------------------------------------------------------------
@@ -199,3 +201,66 @@ class ProjectManager:
         self.project_type = data.get("type", "3D")
         self.active_scene = scene
         self.is_open = True
+        self._load_project_settings()
+
+    # ------------------------------------------------------------------
+    # Settings
+    # ------------------------------------------------------------------
+
+    def _load_project_settings(self) -> None:
+        """Load project_settings.json from project root."""
+        import copy
+
+        # Default settings
+        self._project_settings = {
+            "physics": {
+                "gravity_x": 0.0,
+                "gravity_y": -9.81,
+                "fixed_timestep": 0.02,
+                "max_substeps": 5,
+            },
+            "render": {
+                "target_fps": 60,
+                "vsync": True,
+                "msaa_samples": 4,
+                "background_color": [0.1, 0.12, 0.18, 1.0],
+            },
+            "tags": [
+                "Untagged",
+                "Player",
+                "Enemy",
+                "Ground",
+                "Trigger",
+                "UI",
+                "Camera",
+            ],
+            "layers": ["Default", "UI", "Physics", "Ignore Raycast"],
+            "input": {
+                "Horizontal": {"positive": "D", "negative": "A"},
+                "Vertical": {"positive": "W", "negative": "S"},
+                "Jump": {"positive": "Space", "negative": ""},
+                "Fire": {"positive": "Mouse0", "negative": ""},
+            },
+        }
+
+        # Load and merge saved settings
+        if self.project_root:
+            settings_path = self.project_root / "project_settings.json"
+            if settings_path.exists():
+                try:
+                    saved = json.loads(settings_path.read_text(encoding="utf-8"))
+                    for k, v in saved.items():
+                        if isinstance(v, dict) and k in self._project_settings:
+                            self._project_settings[k].update(v)
+                        else:
+                            self._project_settings[k] = v
+                except Exception:
+                    pass
+
+    def get_tags(self) -> list:
+        """Get list of predefined tags for this project."""
+        return self._project_settings.get("tags", ["Untagged"])
+
+    def get_layers(self) -> list:
+        """Get list of predefined layers for this project."""
+        return self._project_settings.get("layers", ["Default"])
