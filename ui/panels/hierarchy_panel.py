@@ -1,3 +1,8 @@
+"""
+hierarchy_panel.py — Reworked: cleaner header, better item styling,
+search bar, entity count.
+"""
+
 from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
@@ -6,6 +11,7 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QHBoxLayout,
     QInputDialog,
+    QLineEdit,
     QMenu,
     QMessageBox,
     QPushButton,
@@ -13,6 +19,7 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
+    QLabel,
 )
 
 if TYPE_CHECKING:
@@ -21,43 +28,75 @@ if TYPE_CHECKING:
 
 class HierarchyPanel(QDockWidget):
     def __init__(self, app, parent=None):
-        super().__init__("Scene Hierarchy", parent)
+        super().__init__("Hierarchy", parent)
         self.app = app
         self.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
 
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
+        root_w = QWidget()
+        root_w.setStyleSheet("background:#1a1a1a;")
+        lay = QVBoxLayout(root_w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
 
-        btn_row = QHBoxLayout()
-        add_btn = QPushButton("+ Entity")
+        # Header bar
+        hdr = QWidget()
+        hdr.setFixedHeight(32)
+        hdr.setStyleSheet("background:#141414;border-bottom:1px solid #222;")
+        hdr_row = QHBoxLayout(hdr)
+        hdr_row.setContentsMargins(8, 0, 6, 0)
+        hdr_row.setSpacing(4)
+
+        self._count_lbl = QLabel("0 entities")
+        self._count_lbl.setStyleSheet("color:#444;font-size:10px;")
+        hdr_row.addWidget(self._count_lbl, 1)
+
+        add_btn = QPushButton("+")
+        add_btn.setFixedSize(22, 22)
+        add_btn.setToolTip("Add Entity (Ctrl+Shift+A)")
+        add_btn.setStyleSheet("""
+            QPushButton{background:#1e3a1e;border:1px solid #2d6b2d;border-radius:3px;
+                        color:#5c5;font-weight:700;font-size:14px;}
+            QPushButton:hover{background:#254a25;}""")
         add_btn.clicked.connect(self.on_add_entity)
-        del_btn = QPushButton("✕")
-        del_btn.setFixedWidth(28)
-        del_btn.clicked.connect(self.on_delete_entity)
-        btn_row.addWidget(add_btn)
-        btn_row.addWidget(del_btn)
-        layout.addLayout(btn_row)
+        hdr_row.addWidget(add_btn)
+        lay.addWidget(hdr)
 
+        # Search bar
+        self._search = QLineEdit()
+        self._search.setPlaceholderText("🔍  Filter entities…")
+        self._search.setStyleSheet("""
+            QLineEdit{background:#111;border:none;border-bottom:1px solid #222;
+                      padding:5px 8px;color:#aaa;font-size:10px;}
+            QLineEdit:focus{border-bottom-color:#3c8dde;}""")
+        self._search.textChanged.connect(self._filter)
+        lay.addWidget(self._search)
+
+        # Tree
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabel("Scene")
+        self.tree.setHeaderHidden(True)
+        self.tree.setIndentation(16)
+        self.tree.setStyleSheet("""
+            QTreeWidget{background:#1a1a1a;border:none;color:#ccc;outline:none;}
+            QTreeWidget::item{height:24px;padding-left:2px;}
+            QTreeWidget::item:hover{background:#212121;}
+            QTreeWidget::item:selected{background:#1e3a5f;color:#fff;}
+            QTreeWidget::branch:has-children:closed{image:none;}
+            QTreeWidget::branch:has-children:open{image:none;}
+        """)
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._context_menu)
-        self.tree.itemClicked.connect(self._on_item_clicked)
-        # allow drag-drop for reparenting
+        self.tree.itemClicked.connect(self._on_click)
         self.tree.setDragDropMode(QTreeWidget.InternalMove)
         self.tree.setDefaultDropAction(Qt.MoveAction)
         self.tree.model().rowsMoved.connect(self._on_rows_moved)
-        layout.addWidget(self.tree)
-        self.setWidget(container)
+        lay.addWidget(self.tree, 1)
 
-    # ------------------------------------------------------------------
-    # Refresh — builds full nested tree
-    # ------------------------------------------------------------------
+        self.setWidget(root_w)
+
+    # ── Refresh ────────────────────────────────────────────────────────
 
     def refresh(self) -> None:
-        selected_id = (
+        sel_id = (
             self.app.selector.selected_entity.id
             if self.app.selector.selected_entity
             else None
@@ -65,102 +104,115 @@ class HierarchyPanel(QDockWidget):
         self.tree.blockSignals(True)
         self.tree.clear()
         scene = self.app.active_scene
+        count = 0
         if scene:
-            scene_root = QTreeWidgetItem([scene.name])
-            scene_root.setData(0, Qt.UserRole, None)
-            self.tree.addTopLevelItem(scene_root)
+            scene_item = QTreeWidgetItem([f"  {scene.name}"])
+            scene_item.setData(0, Qt.UserRole, None)
+            scene_item.setForeground(
+                0, __import__("PySide6.QtGui", fromlist=["QColor"]).QColor("#3c8dde")
+            )
+            self.tree.addTopLevelItem(scene_item)
             for entity in scene.entities:
-                item = self._make_item(entity)
-                scene_root.addChild(item)
+                count += 1 + len(entity.all_children_recursive())
+                item = self._mk(entity)
+                scene_item.addChild(item)
                 self._add_children(item, entity)
-            scene_root.setExpanded(True)
+            scene_item.setExpanded(True)
+        self._count_lbl.setText(f"{count} entities" if count != 1 else "1 entity")
         self.tree.blockSignals(False)
-        if selected_id:
-            self._highlight_id(selected_id)
+        if sel_id:
+            self._highlight(sel_id)
+        filt = self._search.text().strip()
+        if filt:
+            self._filter(filt)
 
-    def _make_item(self, entity: "Entity") -> QTreeWidgetItem:
-        item = QTreeWidgetItem([entity.name])
+    def _mk(self, entity: "Entity") -> QTreeWidgetItem:
+        from PySide6.QtGui import QColor, QFont
+
+        prefix = "●" if entity.enabled else "○"
+        item = QTreeWidgetItem([f" {prefix}  {entity.name}"])
         item.setData(0, Qt.UserRole, entity.id)
         if not entity.enabled:
-            from PySide6.QtGui import QColor
-
-            item.setForeground(0, QColor("#666666"))
-        if "group" in entity.tags:
-            item.setForeground(
-                0, __import__("PySide6.QtGui", fromlist=["QColor"]).QColor("#aaddff")
-            )
+            item.setForeground(0, QColor("#555"))
+        elif "group" in entity.tags:
+            item.setForeground(0, QColor("#7ec8e3"))
+        elif "light" in entity.tags:
+            item.setForeground(0, QColor("#ffe08a"))
+        elif "audio" in entity.tags:
+            item.setForeground(0, QColor("#c3a6ff"))
         return item
 
-    def _add_children(
-        self, parent_item: QTreeWidgetItem, parent_entity: "Entity"
-    ) -> None:
+    def _add_children(self, parent_item, parent_entity) -> None:
         for child in parent_entity.children:
-            child_item = self._make_item(child)
-            parent_item.addChild(child_item)
-            self._add_children(child_item, child)
+            ci = self._mk(child)
+            parent_item.addChild(ci)
+            self._add_children(ci, child)
         if parent_entity.children:
             parent_item.setExpanded(True)
 
-    def _highlight_id(self, eid: str) -> None:
+    def _highlight(self, eid: str) -> None:
         it = self.tree.invisibleRootItem()
-        self._search_and_select(it, eid)
+        self._find_and_select(it, eid)
 
-    def _search_and_select(self, parent: QTreeWidgetItem, eid: str) -> bool:
+    def _find_and_select(self, parent, eid: str) -> bool:
         for i in range(parent.childCount()):
             child = parent.child(i)
             if child.data(0, Qt.UserRole) == eid:
                 child.setSelected(True)
                 self.tree.scrollToItem(child)
                 return True
-            if self._search_and_select(child, eid):
+            if self._find_and_select(child, eid):
                 return True
         return False
 
-    # ------------------------------------------------------------------
-    # Drag-drop reparenting
-    # ------------------------------------------------------------------
+    def _filter(self, text: str) -> None:
+        text = text.lower().strip()
+        it = self.tree.invisibleRootItem()
+        self._filter_items(it, text)
 
-    def _on_rows_moved(self, *_args) -> None:
-        """
-        After a drag-drop reorder, rebuild parent/child relationships
-        by reading the tree structure.
-        """
+    def _filter_items(self, parent, text: str) -> bool:
+        any_vis = False
+        for i in range(parent.childCount()):
+            child = parent.child(i)
+            label = child.text(0).lower()
+            child_vis = self._filter_items(child, text) or (not text) or (text in label)
+            child.setHidden(not child_vis)
+            any_vis = any_vis or child_vis
+        return any_vis
+
+    # ── Drag-drop ──────────────────────────────────────────────────────
+
+    def _on_rows_moved(self, *_) -> None:
         scene = self.app.active_scene
         if scene is None:
             return
-        # read new structure from tree
         root = self.tree.invisibleRootItem()
         if root.childCount() == 0:
             return
-        scene_item = root.child(0)
-        self._sync_hierarchy_from_tree(scene_item, None, scene)
+        self._sync(root.child(0), None, scene)
 
-    def _sync_hierarchy_from_tree(self, tree_item, parent_entity, scene):
+    def _sync(self, tree_item, parent_entity, scene) -> None:
         for i in range(tree_item.childCount()):
-            child_item = tree_item.child(i)
-            eid = child_item.data(0, Qt.UserRole)
-            entity = scene.get_entity_by_id(eid) if eid else None
-            if entity is None:
+            ci = tree_item.child(i)
+            eid = ci.data(0, Qt.UserRole)
+            e = scene.get_entity_by_id(eid) if eid else None
+            if e is None:
                 continue
-            # reparent if needed
             if parent_entity is None:
-                # should be top-level
-                if entity._parent is not None:
-                    entity.detach_from_parent()
-                if entity not in scene._entities:
-                    scene._entities.append(entity)
+                if e._parent is not None:
+                    e.detach_from_parent()
+                if e not in scene._entities:
+                    scene._entities.append(e)
             else:
-                if entity._parent is not parent_entity:
-                    if entity in scene._entities:
-                        scene._entities.remove(entity)
-                    parent_entity.add_child(entity)
-            self._sync_hierarchy_from_tree(child_item, entity, scene)
+                if e._parent is not parent_entity:
+                    if e in scene._entities:
+                        scene._entities.remove(e)
+                    parent_entity.add_child(e)
+            self._sync(ci, e, scene)
 
-    # ------------------------------------------------------------------
-    # Click
-    # ------------------------------------------------------------------
+    # ── Selection ──────────────────────────────────────────────────────
 
-    def _on_item_clicked(self, item: QTreeWidgetItem, _col: int) -> None:
+    def _on_click(self, item: QTreeWidgetItem, _col: int) -> None:
         eid = item.data(0, Qt.UserRole)
         if eid is None:
             self.app.selector.clear()
@@ -169,28 +221,30 @@ class HierarchyPanel(QDockWidget):
         entity = scene.get_entity_by_id(eid) if scene else None
         self.app.selector.select(entity)
 
-    # ------------------------------------------------------------------
-    # Context menu
-    # ------------------------------------------------------------------
+    # ── Context menu ───────────────────────────────────────────────────
 
     def _context_menu(self, pos) -> None:
         item = self.tree.itemAt(pos)
         menu = QMenu()
-        menu.addAction("Add Entity", self.on_add_entity)
+        menu.setStyleSheet("""
+            QMenu{background:#1e1e1e;border:1px solid #333;border-radius:5px;padding:4px;}
+            QMenu::item{padding:5px 16px;color:#ccc;font-size:11px;border-radius:3px;}
+            QMenu::item:selected{background:#1e3a5f;color:#fff;}
+            QMenu::separator{height:1px;background:#2a2a2a;margin:4px 8px;}
+        """)
+        menu.addAction("➕  Add Entity", self.on_add_entity)
         if item and item.data(0, Qt.UserRole):
-            menu.addAction("Add Child Entity", self._on_add_child)
-            menu.addAction("Group Selected", self._on_group_selected)
-            menu.addAction("Duplicate", self._on_duplicate)
+            menu.addAction("➕  Add Child", self._on_add_child)
+            menu.addAction("⧉   Duplicate", self._on_duplicate)
+            menu.addAction("🗂  Group", self._on_group)
             menu.addSeparator()
-            menu.addAction("Save as Prefab", self._on_save_prefab)
+            menu.addAction("💾  Save as Prefab", self._on_prefab)
             menu.addSeparator()
-            menu.addAction("Rename", self.on_rename_entity)
-            menu.addAction("Delete Entity", self.on_delete_entity)
+            menu.addAction("✎   Rename", self.on_rename_entity)
+            menu.addAction("🗑  Delete", self.on_delete_entity)
         menu.exec(self.tree.mapToGlobal(pos))
 
-    # ------------------------------------------------------------------
-    # Entity operations
-    # ------------------------------------------------------------------
+    # ── Operations ─────────────────────────────────────────────────────
 
     def on_add_entity(self) -> None:
         scene = self.app.active_scene
@@ -208,8 +262,7 @@ class HierarchyPanel(QDockWidget):
                 entity.name = name or entity.name
                 from core.undo_redo import AddEntityCommand, UndoStack
 
-                cmd = AddEntityCommand(scene, entity)
-                UndoStack.execute(cmd)
+                UndoStack.execute(AddEntityCommand(scene, entity))
                 self.refresh()
                 self.app.selector.select(entity)
 
@@ -232,8 +285,7 @@ class HierarchyPanel(QDockWidget):
                 self.refresh()
                 self.app.selector.select(child)
 
-    def _on_group_selected(self) -> None:
-        """Wrap selected entity in a Group parent."""
+    def _on_group(self) -> None:
         scene = self.app.active_scene
         entity = self.app.selector.selected_entity
         if not scene or not entity:
@@ -241,10 +293,9 @@ class HierarchyPanel(QDockWidget):
         from core.entity_templates import group_entity
 
         group = group_entity(scene, "Group")
-        # insert group at same level as entity
-        old_parent = entity._parent
-        if old_parent:
-            old_parent.add_child(group)
+        old_p = entity._parent
+        if old_p:
+            old_p.add_child(group)
         else:
             scene.add_entity(group)
         group.add_child(entity)
@@ -257,16 +308,12 @@ class HierarchyPanel(QDockWidget):
         if not scene or not entity:
             return
         reply = QMessageBox.question(
-            self,
-            "Delete",
-            f"Delete '{entity.name}' and all children?",
-            QMessageBox.Yes | QMessageBox.No,
+            self, "Delete", f"Delete '{entity.name}'?", QMessageBox.Yes | QMessageBox.No
         )
         if reply == QMessageBox.Yes:
             from core.undo_redo import DeleteEntityCommand, UndoStack
 
-            cmd = DeleteEntityCommand(scene, entity)
-            UndoStack.execute(cmd)
+            UndoStack.execute(DeleteEntityCommand(scene, entity))
             self.app.selector.clear()
             self.refresh()
 
@@ -280,7 +327,7 @@ class HierarchyPanel(QDockWidget):
             self.refresh()
 
     def _on_duplicate(self) -> None:
-        import json, uuid
+        import uuid
 
         scene = self.app.active_scene
         entity = self.app.selector.selected_entity
@@ -301,8 +348,7 @@ class HierarchyPanel(QDockWidget):
         self.refresh()
         self.app.selector.select(copy)
 
-    def _on_save_prefab(self) -> None:
+    def _on_prefab(self) -> None:
         entity = self.app.selector.selected_entity
-        if not entity:
-            return
-        self.app.prefabs.save_prefab(entity)
+        if entity:
+            self.app.prefabs.save_prefab(entity)

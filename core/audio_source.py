@@ -1,10 +1,12 @@
 """
 audio_source.py
-BUG FIX: _run() was `self.clip.samples * self.clip` — should be `* self.volume`.
+FIX: _run() was `self.clip.samples * self.clip` → `* self.volume`.
 """
+
 from __future__ import annotations
 import threading
 from typing import Optional, TYPE_CHECKING
+
 import numpy as np
 from core.component import Component
 
@@ -51,6 +53,7 @@ class AudioSource(Component):
             self._stop_event.set()
             try:
                 import sounddevice as sd
+
                 sd.stop()
             except Exception:
                 pass
@@ -63,6 +66,7 @@ class AudioSource(Component):
         self._paused = not self._paused
         try:
             import sounddevice as sd
+
             if self._paused:
                 sd.stop()
         except Exception:
@@ -75,7 +79,8 @@ class AudioSource(Component):
     def _run(self) -> None:
         try:
             import sounddevice as sd
-            # FIX: was `self.clip.samples * self.clip` (bug — multiplied by object)
+
+            # FIX: was `self.clip.samples * self.clip` (multiplied by the object)
             if abs(self.pitch - 1.0) > 0.01:
                 orig_len = len(self.clip.samples)
                 new_len = max(1, int(orig_len / self.pitch))
@@ -94,12 +99,16 @@ class AudioSource(Component):
 
     def to_dict(self) -> dict:
         d = super().to_dict()
-        d.update({
-            "volume": self.volume, "pitch": self.pitch,
-            "loop": self.loop, "play_on_start": self.play_on_start,
-            "spatial": self.spatial,
-            "clip_path": self.clip.name if self.clip else "",
-        })
+        d.update(
+            {
+                "volume": self.volume,
+                "pitch": self.pitch,
+                "loop": self.loop,
+                "play_on_start": self.play_on_start,
+                "spatial": self.spatial,
+                "clip_path": self.clip.name if self.clip else "",
+            }
+        )
         return d
 
     @classmethod

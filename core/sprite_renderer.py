@@ -1,3 +1,9 @@
+"""
+sprite_renderer.py
+FIX: Material construction uses keyword args throughout.
+FIX: SpriteRenderer._build_vao calls material.reload_texture(ctx).
+"""
+
 from __future__ import annotations
 from typing import Optional
 import numpy as np
@@ -10,16 +16,10 @@ import core.primitives_2d as prim2d
 
 
 class SpriteRenderer(Component):
-    """
-    2D sprite rendering component.
-    Uses the sprite shader (no lighting, texture * color).
-    Shape defaults to 'square' but can be any primitives_2d shape.
-    """
-
     def __init__(self, material: Optional[Material] = None, shape: str = "square"):
         super().__init__()
         shader = Shader.from_builtin("sprite")
-        self.material = material or Material(shader, name="SpriteMaterial")
+        self.material = material or Material(shader=shader, name="SpriteMaterial")
         self.shape = shape
         self._vao: Optional[moderngl.VertexArray] = None
         self._ctx: Optional[moderngl.Context] = None
@@ -35,12 +35,12 @@ class SpriteRenderer(Component):
 
     def set_size(self, w: float, h: float) -> None:
         self.size[:] = (w, h)
-        self._vao = None  # rebuild with new size
+        self._vao = None
 
     def set_shape(self, shape: str) -> None:
         if shape not in prim2d.PRIMITIVES_2D:
             raise ValueError(
-                f"Unknown 2D shape '{shape}'. " f"Options: {list(prim2d.PRIMITIVES_2D)}"
+                f"Unknown 2D shape '{shape}'. Options: {list(prim2d.PRIMITIVES_2D)}"
             )
         self.shape = shape
         self._vao = None
@@ -48,9 +48,8 @@ class SpriteRenderer(Component):
     def _build_vao(self, ctx: moderngl.Context) -> None:
         self._ctx = ctx
         self.material.compile(ctx)
-        verts = prim2d.generate_2d(self.shape)
-        # scale by size
-        verts = verts.reshape(-1, 4).copy()
+        self.material.reload_texture(ctx)
+        verts = prim2d.generate_2d(self.shape).reshape(-1, 4).copy()
         verts[:, 0] *= self.size[0]
         verts[:, 1] *= self.size[1]
         if self.flip_x:
@@ -96,10 +95,7 @@ class SpriteRenderer(Component):
         return sr
 
 
-# ------------------------------------------------------------------
-# Shape2DRenderer — like SpriteRenderer but colour-only, no texture
-# Great for UI elements, debug shapes, simple game objects
-# ------------------------------------------------------------------
+# ── Shape2DRenderer ─────────────────────────────────────────────────────────
 
 _SHAPE_VERT = """
 #version 330
@@ -121,10 +117,7 @@ void main() { f_color = u_color; }
 
 
 class Shape2DRenderer(Component):
-    """
-    Renders a solid-colour 2D shape — no texture, no lighting.
-    Perfect for rectangles, circles, polygons as game objects.
-    """
+    """Solid-colour 2D shape — no texture, no lighting."""
 
     def __init__(self, shape: str = "square", color: tuple = (1.0, 1.0, 1.0, 1.0)):
         super().__init__()
@@ -150,14 +143,10 @@ class Shape2DRenderer(Component):
 
     def _build(self, ctx: moderngl.Context) -> None:
         self._ctx = ctx
-        self._prog = ctx.program(
-            vertex_shader=_SHAPE_VERT,
-            fragment_shader=_SHAPE_FRAG,
-        )
+        self._prog = ctx.program(vertex_shader=_SHAPE_VERT, fragment_shader=_SHAPE_FRAG)
         verts = prim2d.generate_2d(self.shape).reshape(-1, 4).copy()
         verts[:, 0] *= self.size[0]
         verts[:, 1] *= self.size[1]
-        # only need XY
         xy = np.ascontiguousarray(verts[:, :2])
         vbo = ctx.buffer(xy.tobytes())
         self._vao = ctx.vertex_array(self._prog, [(vbo, "2f", "in_position")])
