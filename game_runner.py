@@ -1,63 +1,37 @@
 """
 game_runner.py
 Headless NEXIS game runner — runs a project WITHOUT the editor UI.
-Supports two modes:
-  1. python game_runner.py path/to/Project.nexis
-  2. python game_runner.py path/to/Project.nexis --windowed  (separate window)
-
-The --windowed flag is also what the editor uses for "Play in New Window".
+FIX: rb.velocity → physics body sync before step (same fix as play_mode.py).
 """
 
 from __future__ import annotations
 import sys
 import json
 import time
-import math
 import argparse
 from pathlib import Path
 
-import numpy as np
 import moderngl
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QEvent, QTimer
 from PySide6.QtWidgets import QApplication, QMainWindow
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
-# ── Minimal console (no UI widget) ────────────────────────────────────────
-
-
-class _Console:
-    def info(self, m):
-        print(f"[INFO]    {m}")
-
-    def warning(self, m):
-        print(f"[WARNING] {m}")
-
-    def error(self, m):
-        print(f"[ERROR]   {m}")
-
-
-# ── Game GL widget ─────────────────────────────────────────────────────────
-
 
 class GameWidget(QOpenGLWidget):
-    """
-    Minimal OpenGL widget that runs the scene in play mode.
-    Mirrors exactly what the editor viewport does during play,
-    but with no editor overhead.
-    """
-
     def __init__(self, project_path: str, parent=None):
         super().__init__(parent)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setFocus()
         self.grabKeyboard()
+        _app = QApplication.instance()
+        if _app is not None:
+            _app.installEventFilter(self)
         self.setMouseTracking(True)
         self._project_path = Path(project_path)
         self._ctx = None
         self._scene = None
         self._ready = False
 
-        # Minimal app-like object so scene / scripts work unchanged
         from core.console import EngineConsole
         from core.time_manager import Time
         from core.event_system import Events
@@ -69,9 +43,7 @@ class GameWidget(QOpenGLWidget):
         self._Events = Events
         self._Input = Input
         self._physics = PhysicsWorld2D()
-        self._last_t = time.perf_counter()
 
-        # Timer drives the game loop
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(16)
@@ -93,7 +65,6 @@ class GameWidget(QOpenGLWidget):
                 json.loads(scene_path.read_text(encoding="utf-8"))
             )
             self._ptype = pdata.get("type", "3D")
-            # Start
             self._Time.start()
             self._init_physics()
             self._scene.start()
@@ -113,11 +84,10 @@ class GameWidget(QOpenGLWidget):
         fbo.use()
         self._ctx.viewport = (0, 0, w, h)
         self._ctx.enable(moderngl.DEPTH_TEST)
-
         cam = self._scene._find_main_camera()
         if cam:
             cc = cam.clear_color
-            self._ctx.clear(cc[0], cc[1], cc[2], cc[3])
+            self._ctx.clear(float(cc[0]), float(cc[1]), float(cc[2]), float(cc[3]))
             view = cam.get_view_matrix()
             proj = cam.get_projection_matrix(w, h)
             self._scene.render_editor(self._ctx, view, proj)
@@ -129,53 +99,61 @@ class GameWidget(QOpenGLWidget):
             self._ctx.viewport = (0, 0, w, h)
 
     def showEvent(self, event):
-        self.setFocus()        self.grabKeyboard()        self.activateWindow()
+        self.setFocus()
+        self.grabKeyboard()
         super().showEvent(event)
 
-    # ── Game loop ──────────────────────────────────────────────────────
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.KeyPress:
+            self._Input.on_key_press(event.key())
+            if self._scene:
+                from core.script_component import ScriptComponent
+
+                for e in self._scene.all_entities():
+                    sc = e.get_component(ScriptComponent)
+                    if sc and sc._loaded:
+                        sc.on_input(event.key(), True)
+        elif event.type() == QEvent.KeyRelease:
+            self._Input.on_key_release(event.key())
+            if self._scene:
+                from core.script_component import ScriptComponent
+
+                for e in self._scene.all_entities():
+                    sc = e.get_component(ScriptComponent)
+                    if sc and sc._loaded:
+                        sc.on_input(event.key(), False)
+        return super().eventFilter(obj, event)
+
+    # ── Game loop ────────────────────────────────────────────────────────
 
     def _tick(self):
         if not self._ready:
             return
         self._Input.begin_frame()
         dt = self._Time.tick()
+
+        # 1. Run scripts (they may set rb.velocity)
+        self._scene.update(dt)
+
+        # 2. FIX: copy rb.velocity → body.velocity BEFORE physics step
+        self._sync_script_velocity_to_physics()
+
+        # 3. Step physics
         self._physics.step(dt)
+
+        # 4. Copy results back to transforms
         self._sync_physics_to_transforms()
         self._fire_collision_callbacks()
-        self._scene.update(dt)
+
         self.update()
 
-    # ── Input forwarding ─────────────────────────────────────────────────
-
-    def keyPressEvent(self, ev):
-        self._Input.on_key_press(ev.key())
-        # Send to all script components
-        if self._scene:
-            from core.script_component import ScriptComponent
-
-            for e in self._scene.all_entities():
-                sc = e.get_component(ScriptComponent)
-                if sc and sc._loaded:
-                    sc.on_input(ev.key(), True)
-        super().keyPressEvent(ev)
-
-    def keyReleaseEvent(self, ev):
-        self._Input.on_key_release(ev.key())
-        if self._scene:
-            from core.script_component import ScriptComponent
-
-            for e in self._scene.all_entities():
-                sc = e.get_component(ScriptComponent)
-                if sc and sc._loaded:
-                    sc.on_input(ev.key(), False)
-        super().keyReleaseEvent(ev)
+    # ── Physics helpers ───────────────────────────────────────────────────
 
     def _init_physics(self) -> None:
         from core.physics_2d import Rigidbody2D, BoxCollider2D, CircleCollider2D
 
         if self._scene is None:
             return
-
         self._physics = type(self._physics)(gravity=self._physics.gravity)
         for entity in self._scene.all_entities():
             rb = entity.get_component(Rigidbody2D)
@@ -199,15 +177,29 @@ class GameWidget(QOpenGLWidget):
                 )
             elif cir:
                 self._physics.set_circle_shape(entity.id, cir.radius, cir.is_trigger)
-        if self._scene is not None:
-            self._scene._physics_world = self._physics
+        self._scene._physics_world = self._physics
+
+    def _sync_script_velocity_to_physics(self) -> None:
+        """THE FIX: copy rb.velocity (set by scripts) into the physics body."""
+        from core.physics_2d import Rigidbody2D
+
+        if self._scene is None:
+            return
+        for entity in self._scene.all_entities():
+            rb = entity.get_component(Rigidbody2D)
+            if rb is None:
+                continue
+            body = self._physics.get_body(entity.id)
+            if body is None:
+                continue
+            body.velocity[0] = rb.velocity[0]
+            body.velocity[1] = rb.velocity[1]
 
     def _sync_physics_to_transforms(self) -> None:
         from core.physics_2d import Rigidbody2D
 
         if self._scene is None:
             return
-
         for entity in self._scene.all_entities():
             rb = entity.get_component(Rigidbody2D)
             if rb is None:
@@ -218,7 +210,8 @@ class GameWidget(QOpenGLWidget):
             entity.transform.position[0] = body.position[0]
             entity.transform.position[1] = body.position[1]
             entity.transform._dirty = True
-            rb.velocity = list(body.velocity)
+            rb.velocity[0] = body.velocity[0]
+            rb.velocity[1] = body.velocity[1]
 
     def _fire_collision_callbacks(self) -> None:
         from core.script_component import ScriptComponent
@@ -245,6 +238,8 @@ class GameWidget(QOpenGLWidget):
                             self._console.error(f"[{entity.name}] {method} error: {e}")
         self._physics._collision_events.clear()
 
+    # ── Input ─────────────────────────────────────────────────────────────
+
     def mousePressEvent(self, ev):
         self.setFocus()
         self._Input.on_mouse_press(ev.button().value)
@@ -267,28 +262,19 @@ class GameWidget(QOpenGLWidget):
         super().closeEvent(ev)
 
 
-# ── Play window (used by editor "Play in Window") ─────────────────────────
-
-
 class PlayWindow(QMainWindow):
-    """Separate window launched from the editor for play-in-window mode."""
-
     def __init__(self, project_path: str):
         super().__init__()
         self.setWindowTitle("NEXIS — Game")
         self.resize(960, 540)
-        widget = GameWidget(project_path, parent=self)
-        self.setCentralWidget(widget)
+        self._widget = GameWidget(project_path, parent=self)
+        self.setCentralWidget(self._widget)
 
     @staticmethod
     def launch(project_path: str) -> "PlayWindow":
-        """Called from the editor. Returns the window (caller must keep ref)."""
         win = PlayWindow(project_path)
         win.show()
         return win
-
-
-# ── CLI entry point ────────────────────────────────────────────────────────
 
 
 def main():
@@ -297,25 +283,15 @@ def main():
     parser.add_argument("--width", type=int, default=960)
     parser.add_argument("--height", type=int, default=540)
     parser.add_argument("--title", default="")
-    parser.add_argument(
-        "--windowed",
-        action="store_true",
-        help="Run in a titled window (same as Play in Window)",
-    )
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
-    app.setApplicationName("NEXIS Game")
-
     win = QMainWindow()
-    title = args.title or Path(args.project).stem
-    win.setWindowTitle(title)
+    win.setWindowTitle(args.title or Path(args.project).stem)
     win.resize(args.width, args.height)
-
     widget = GameWidget(args.project)
     win.setCentralWidget(widget)
     win.show()
-
     sys.exit(app.exec())
 
 

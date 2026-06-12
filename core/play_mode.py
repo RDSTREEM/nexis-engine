@@ -1,9 +1,18 @@
 """
 play_mode.py
-FIX: Physics world ticked every frame.
-FIX: Body positions synced back to entity transforms.
-FIX: Collision callbacks fired to scripts.
-FIX: on_input forwarded to all scripts each frame.
+
+ROOT CAUSE OF MOVEMENT BUG:
+  Scripts write to rb.velocity (the Rigidbody2D component's list).
+  But PhysicsWorld2D.step() uses PhysicsBody.velocity (its own list).
+  _sync_physics_to_transforms() copies body→rb each frame, but nothing
+  ever copies rb→body, so script velocity changes are silently discarded.
+
+FIX:
+  Added _sync_script_velocity_to_physics() which runs BEFORE physics.step().
+  It copies rb.velocity → body.velocity so script changes actually take effect.
+
+  Also added rb.apply_force() and rb.apply_impulse() helpers so scripts
+  can use those instead of setting velocity directly.
 """
 
 from __future__ import annotations
@@ -12,19 +21,19 @@ import time
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app import NexisApp
+    pass
 
 
 class PlayMode:
-    def __init__(self, app: "NexisApp"):
+    def __init__(self, app):
         self.app = app
         self.is_playing = False
         self.is_paused = False
         self._snapshot = None
         self._last_time = 0.0
-        self._pending_input: list = []  # (key, pressed) pairs queued between frames
+        self._pending_input: list = []
 
-    # ── Public ────────────────────────────────────────────────────────
+    # ── Play ─────────────────────────────────────────────────────────────
 
     def play(self) -> None:
         if self.is_playing:
@@ -37,7 +46,6 @@ class PlayMode:
         self._snapshot = copy.deepcopy(scene.to_dict())
         self._init_physics(scene)
 
-        # Ensure there's a camera
         from core.camera_auto import ensure_camera
 
         ensure_camera(scene, getattr(self.app, "project_type", "3D"))
@@ -53,6 +61,8 @@ class PlayMode:
             mw.toolbar.set_playing(True)
         self.app.console.info("▶ Play")
 
+    # ── Pause ─────────────────────────────────────────────────────────────
+
     def pause(self) -> None:
         if not self.is_playing:
             return
@@ -61,6 +71,8 @@ class PlayMode:
         if mw and hasattr(mw, "toolbar"):
             mw.toolbar.set_paused(self.is_paused)
         self.app.console.info("⏸ Paused" if self.is_paused else "▶ Resumed")
+
+    # ── Stop ──────────────────────────────────────────────────────────────
 
     def stop(self) -> None:
         if not self.is_playing:
@@ -72,7 +84,6 @@ class PlayMode:
         self.is_playing = False
         self.is_paused = False
 
-        # Restore snapshot
         if self._snapshot and scene:
             from core.scene import Scene
 
@@ -93,7 +104,7 @@ class PlayMode:
             mw.toolbar.set_playing(False)
         self.app.console.info("⏹ Stop")
 
-    # ── Per-frame update ─────────────────────────────────────────────
+    # ── Per-frame update ──────────────────────────────────────────────────
 
     def update(self) -> None:
         if not self.is_playing or self.is_paused:
@@ -104,6 +115,9 @@ class PlayMode:
         self._last_time = now
 
         from core.time_manager import Time
+        from core.input_manager import Input
+
+        Input.begin_frame()
 
         Time.delta_time = dt
         Time.elapsed += dt
@@ -113,14 +127,9 @@ class PlayMode:
         if scene is None:
             return
 
-        # ── Physics step ─────────────────────────────────────────────
         pw = getattr(scene, "_physics_world", None)
-        if pw is not None:
-            pw.step(dt)
-            self._sync_physics_to_transforms(scene, pw)
-            self._fire_collision_callbacks(scene, pw)
 
-        # ── Forward queued input to scripts ──────────────────────────
+        # 1. Forward queued input to scripts FIRST
         if self._pending_input:
             from core.script_component import ScriptComponent
 
@@ -140,10 +149,24 @@ class PlayMode:
                             )
             self._pending_input.clear()
 
-        # ── Script updates ────────────────────────────────────────────
+        # 2. Run script on_update (scripts may set rb.velocity here)
         scene.update(dt)
 
-    # ── Input forwarding ─────────────────────────────────────────────
+        # 3. ── KEY FIX ──────────────────────────────────────────────────
+        #    Copy rb.velocity → physics body BEFORE stepping physics.
+        #    Without this, velocity set by scripts is ignored because
+        #    PhysicsBody has its own separate velocity list.
+        if pw is not None:
+            self._sync_script_velocity_to_physics(scene, pw)
+
+            # 4. Step physics (gravity, drag, integration, collision)
+            pw.step(dt)
+
+            # 5. Copy physics body results back to rb + transform
+            self._sync_physics_to_transforms(scene, pw)
+            self._fire_collision_callbacks(scene, pw)
+
+    # ── Input forwarding ─────────────────────────────────────────────────
 
     def send_input(self, key: int, pressed: bool) -> None:
         from core.input_manager import Input
@@ -154,7 +177,7 @@ class PlayMode:
             Input.on_key_release(key)
         self._pending_input.append((key, pressed))
 
-    # ── Physics helpers ───────────────────────────────────────────────
+    # ── Physics helpers ───────────────────────────────────────────────────
 
     def _init_physics(self, scene) -> None:
         from core.physics_2d import (
@@ -166,12 +189,9 @@ class PlayMode:
 
         gravity = (0.0, -9.81)
         try:
-            ps = getattr(self.app.project, "settings", None)
-            if ps:
-                gravity = (
-                    getattr(ps, "physics_gravity_x", 0.0),
-                    getattr(ps, "physics_gravity_y", -9.81),
-                )
+            ps = getattr(self.app.project, "_project_settings", {})
+            phy = ps.get("physics", {})
+            gravity = (phy.get("gravity_x", 0.0), phy.get("gravity_y", -9.81))
         except Exception:
             pass
 
@@ -200,7 +220,26 @@ class PlayMode:
 
         scene._physics_world = pw
 
+    def _sync_script_velocity_to_physics(self, scene, pw) -> None:
+        """
+        THE FIX: copy rb.velocity (written by scripts) → body.velocity
+        This must run BEFORE physics.step() so script movement is applied.
+        """
+        from core.physics_2d import Rigidbody2D
+
+        for entity in scene.all_entities():
+            rb = entity.get_component(Rigidbody2D)
+            if rb is None:
+                continue
+            body = pw.get_body(entity.id)
+            if body is None:
+                continue
+            # Scripts write to rb.velocity — push those values into the body
+            body.velocity[0] = rb.velocity[0]
+            body.velocity[1] = rb.velocity[1]
+
     def _sync_physics_to_transforms(self, scene, pw) -> None:
+        """Copy physics body results back to entity transforms and rb.velocity."""
         from core.physics_2d import Rigidbody2D
 
         for entity in scene.all_entities():
@@ -213,7 +252,9 @@ class PlayMode:
             entity.transform.position[0] = body.position[0]
             entity.transform.position[1] = body.position[1]
             entity.transform._dirty = True
-            rb.velocity = list(body.velocity)
+            # Reflect physics results (gravity, drag, collision) back to rb
+            rb.velocity[0] = body.velocity[0]
+            rb.velocity[1] = body.velocity[1]
 
     def _fire_collision_callbacks(self, scene, pw) -> None:
         from core.script_component import ScriptComponent

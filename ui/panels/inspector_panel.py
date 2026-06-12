@@ -1,8 +1,7 @@
 """
-inspector_panel.py — Complete rework.
-Clean card-based layout: each component is a collapsible card.
-Texture assignment wired directly in material rows.
-Re-entrant guard + editingFinished on name field.
+inspector_panel.py — Reworked.
+Consistent card styling, unified colors from theme.py.
+Wider form labels, readable spinbox text, proper card collapse.
 """
 
 from __future__ import annotations
@@ -31,52 +30,69 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-# ── helpers ───────────────────────────────────────────────────────────────
+from ui.theme import (
+    BG_SURFACE,
+    BG_RAISED,
+    BG_INPUT,
+    BG_CARD_HDR,
+    ACCENT,
+    ACCENT_DIM,
+    BORDER,
+    BORDER_LIGHT,
+    TEXT_PRIMARY,
+    TEXT_SECONDARY,
+    TEXT_MUTED,
+    GREEN,
+    GREEN_BG,
+    GREEN_BORDER,
+    RED,
+    RED_BG,
+    PANEL_TOOLBAR_H,
+    CARD_HEADER_H,
+    FORM_LABEL_W,
+)
 
-
-def _hline():
-    f = QFrame()
-    f.setFrameShape(QFrame.HLine)
-    f.setStyleSheet("color:#3a3a3a;")
-    return f
+# ── Helpers ───────────────────────────────────────────────────────────────
 
 
 class _Card(QWidget):
-    """A collapsible component card with a header bar."""
+    """Collapsible component card."""
 
     def __init__(self, title: str, on_remove=None, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("""
-            _Card { background:#303030; border-radius:5px; }
-        """)
         self._collapsed = False
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # ── header ────────────────────────────────────────────────────────
+        # Header
         header = QWidget()
-        header.setFixedHeight(28)
-        header.setStyleSheet("background:#252525; border-radius:5px 5px 0 0;")
+        header.setFixedHeight(CARD_HEADER_H)
+        header.setStyleSheet(
+            f"background: {BG_CARD_HDR}; border-radius: 5px 5px 0 0;"
+            f"border: 1px solid {BORDER}; border-bottom: none;"
+        )
         hrow = QHBoxLayout(header)
         hrow.setContentsMargins(8, 0, 6, 0)
         hrow.setSpacing(4)
 
         self._arrow = QLabel("▾")
-        self._arrow.setStyleSheet("color:#888; font-size:10px;")
+        self._arrow.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 10px;")
         self._arrow.setFixedWidth(14)
         hrow.addWidget(self._arrow)
 
         self._title_lbl = QLabel(title)
-        self._title_lbl.setStyleSheet("color:#ccc; font-weight:600; font-size:11px;")
+        self._title_lbl.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-weight: 600; font-size: 11px; letter-spacing: 0.3px;"
+        )
         hrow.addWidget(self._title_lbl, 1)
 
         if on_remove:
             rm = QPushButton("✕")
             rm.setFixedSize(18, 18)
             rm.setStyleSheet(
-                "QPushButton{color:#888;border:none;background:transparent;font-size:11px;}"
-                "QPushButton:hover{color:#f55;}"
+                f"QPushButton{{color:{TEXT_MUTED};border:none;background:transparent;font-size:11px;}}"
+                f"QPushButton:hover{{color:{RED};}}"
             )
             rm.clicked.connect(on_remove)
             hrow.addWidget(rm)
@@ -84,16 +100,19 @@ class _Card(QWidget):
         header.mousePressEvent = lambda _e: self._toggle()
         outer.addWidget(header)
 
-        # ── body ──────────────────────────────────────────────────────────
+        # Body
         self._body = QWidget()
-        self._body.setStyleSheet("background:#2c2c2c; border-radius:0 0 5px 5px;")
+        self._body.setStyleSheet(
+            f"background: {BG_RAISED}; border: 1px solid {BORDER};"
+            f"border-top: none; border-radius: 0 0 5px 5px;"
+        )
         outer.addWidget(self._body)
 
     def body_layout(self) -> QVBoxLayout:
         if not self._body.layout():
             lay = QVBoxLayout(self._body)
-            lay.setContentsMargins(10, 8, 10, 8)
-            lay.setSpacing(6)
+            lay.setContentsMargins(10, 8, 10, 10)
+            lay.setSpacing(5)
         return self._body.layout()
 
     def _toggle(self):
@@ -111,8 +130,8 @@ class _FormRow(QWidget):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(8)
         lbl = QLabel(label)
-        lbl.setStyleSheet("color:#999; font-size:10px;")
-        lbl.setFixedWidth(72)
+        lbl.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 11px;")
+        lbl.setFixedWidth(FORM_LABEL_W)
         lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         row.addWidget(lbl)
         row.addWidget(widget, 1)
@@ -125,8 +144,9 @@ def _spin(lo, hi, val, decimals=3, step=0.1, on_change=None):
     sb.setSingleStep(step)
     sb.setValue(float(val))
     sb.setStyleSheet(
-        "QDoubleSpinBox{background:#1e1e1e;border:1px solid #3a3a3a;"
-        "border-radius:3px;padding:1px 4px;color:#ddd;font-size:10px;}"
+        f"QDoubleSpinBox{{background:{BG_INPUT};border:1px solid {BORDER_LIGHT};"
+        f"border-radius:4px;padding:2px 5px;color:{TEXT_PRIMARY};font-size:11px;}}"
+        f"QDoubleSpinBox:focus{{border-color:{ACCENT};}}"
     )
     if on_change:
         sb.valueChanged.connect(on_change)
@@ -136,7 +156,7 @@ def _spin(lo, hi, val, decimals=3, step=0.1, on_change=None):
 def _check(val: bool, label: str = "", on_change=None):
     cb = QCheckBox(label)
     cb.setChecked(val)
-    cb.setStyleSheet("QCheckBox{color:#bbb;font-size:10px;}")
+    cb.setStyleSheet(f"QCheckBox{{color:{TEXT_SECONDARY};font-size:11px;}}")
     if on_change:
         cb.toggled.connect(on_change)
     return cb
@@ -147,8 +167,8 @@ def _combo(items: list, current: str, on_change=None):
     c.addItems(items)
     c.setCurrentText(current)
     c.setStyleSheet(
-        "QComboBox{background:#1e1e1e;border:1px solid #3a3a3a;"
-        "border-radius:3px;padding:1px 4px;color:#ddd;font-size:10px;}"
+        f"QComboBox{{background:{BG_INPUT};border:1px solid {BORDER_LIGHT};"
+        f"border-radius:4px;padding:2px 5px;color:{TEXT_PRIMARY};font-size:11px;}}"
     )
     if on_change:
         c.currentTextChanged.connect(on_change)
@@ -162,12 +182,12 @@ class _Vec3Row(QWidget):
         super().__init__(parent)
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(4)
+        row.setSpacing(3)
         labels = ["X", "Y", "Z"]
-        colors = ["#cc4444", "#44cc44", "#4488cc"]
+        colors = ["#c04444", "#44aa44", "#4477cc"]
         for i in range(3):
             lbl = QLabel(labels[i])
-            lbl.setStyleSheet(f"color:{colors[i]};font-size:10px;font-weight:bold;")
+            lbl.setStyleSheet(f"color: {colors[i]}; font-size: 10px; font-weight: 600;")
             lbl.setFixedWidth(12)
             sb = QDoubleSpinBox()
             sb.setRange(-99999, 99999)
@@ -175,8 +195,9 @@ class _Vec3Row(QWidget):
             sb.setSingleStep(0.1)
             sb.setValue(float(arr[i]))
             sb.setStyleSheet(
-                "QDoubleSpinBox{background:#1e1e1e;border:1px solid #3a3a3a;"
-                "border-radius:3px;padding:1px 3px;color:#ddd;font-size:10px;}"
+                f"QDoubleSpinBox{{background:{BG_INPUT};border:1px solid {BORDER_LIGHT};"
+                f"border-radius:4px;padding:2px 4px;color:{TEXT_PRIMARY};font-size:11px;}}"
+                f"QDoubleSpinBox:focus{{border-color:{ACCENT};}}"
             )
             sb.valueChanged.connect(lambda v, idx=i: on_change(idx, v))
             row.addWidget(lbl)
@@ -195,17 +216,18 @@ class InspectorPanel(QDockWidget):
         self.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         self.setMinimumWidth(240)
 
-        # Scroll area
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._scroll.setStyleSheet("QScrollArea{border:none;background:#282828;}")
+        self._scroll.setStyleSheet(
+            f"QScrollArea{{border:none;background:{BG_SURFACE};}}"
+        )
 
         self._root = QWidget()
-        self._root.setStyleSheet("background:#282828;")
+        self._root.setStyleSheet(f"background: {BG_SURFACE};")
         self._vbox = QVBoxLayout(self._root)
         self._vbox.setContentsMargins(6, 6, 6, 6)
-        self._vbox.setSpacing(6)
+        self._vbox.setSpacing(5)
         self._vbox.setAlignment(Qt.AlignTop)
         self._scroll.setWidget(self._root)
         self.setWidget(self._scroll)
@@ -236,7 +258,7 @@ class InspectorPanel(QDockWidget):
         self._clear()
         lbl = QLabel("No entity selected")
         lbl.setAlignment(Qt.AlignCenter)
-        lbl.setStyleSheet("color:#555; font-size:11px; padding:20px;")
+        lbl.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 12px; padding: 30px;")
         self._vbox.addWidget(lbl)
 
     def _rebuild(self):
@@ -267,7 +289,9 @@ class InspectorPanel(QDockWidget):
     def _build_entity_header(self):
         e = self._entity
         card = QWidget()
-        card.setStyleSheet("background:#1e1e1e; border-radius:5px;")
+        card.setStyleSheet(
+            f"background: {BG_RAISED}; border-radius: 5px; border: 1px solid {BORDER};"
+        )
         row = QHBoxLayout(card)
         row.setContentsMargins(8, 6, 8, 6)
         row.setSpacing(8)
@@ -280,9 +304,10 @@ class InspectorPanel(QDockWidget):
 
         name_edit = QLineEdit(e.name)
         name_edit.setStyleSheet(
-            "QLineEdit{background:#2a2a2a;border:1px solid #3c3c3c;"
-            "border-radius:3px;color:#fff;font-size:12px;font-weight:600;"
-            "padding:3px 6px;}"
+            f"QLineEdit{{background:{BG_INPUT};border:1px solid {BORDER_LIGHT};"
+            f"border-radius:4px;color:{TEXT_PRIMARY};font-size:12px;font-weight:600;"
+            f"padding:4px 8px;}}"
+            f"QLineEdit:focus{{border-color:{ACCENT};}}"
         )
 
         def _commit():
@@ -296,13 +321,14 @@ class InspectorPanel(QDockWidget):
         name_edit.editingFinished.connect(_commit)
         row.addWidget(name_edit, 1)
 
-        # Tags button - opens tag selection dialog
-        tag_btn = QPushButton("Tags")
-        tag_btn.setFixedWidth(50)
+        tag_count = len(e.tags)
+        tag_label = f"Tags ({tag_count})" if tag_count else "Tags"
+        tag_btn = QPushButton(tag_label)
+        tag_btn.setFixedHeight(24)
         tag_btn.setStyleSheet(
-            "QPushButton{background:#1e3a1e;border:1px solid #2d6b2d;"
-            "color:#55cc55;font-size:9px;border-radius:3px;padding:2px 6px;}"
-            "QPushButton:hover{background:#254a25;}"
+            f"QPushButton{{background:{BG_INPUT};border:1px solid {BORDER_LIGHT};"
+            f"color:{TEXT_MUTED};font-size:10px;border-radius:4px;padding:2px 8px;}}"
+            f"QPushButton:hover{{border-color:{ACCENT};color:{TEXT_SECONDARY};}}"
         )
 
         def _edit_tags():
@@ -311,7 +337,8 @@ class InspectorPanel(QDockWidget):
             dlg = TagSelectorDialog(e.tags, self.app.project, self)
             if dlg.exec():
                 e.tags = dlg.selected_tags
-                tag_btn.setText(f"Tags ({len(e.tags)})" if e.tags else "Tags")
+                c = len(e.tags)
+                tag_btn.setText(f"Tags ({c})" if c else "Tags")
 
         tag_btn.clicked.connect(_edit_tags)
         row.addWidget(tag_btn)
@@ -348,8 +375,6 @@ class InspectorPanel(QDockWidget):
         from core.physics_2d import BoxCollider2D, CircleCollider2D, Rigidbody2D
         from core.script_component import ScriptComponent
         from core.audio_source import AudioSource
-        import core.primitives as prim3d
-        import core.primitives_2d as prim2d
 
         name = type(comp).__name__
 
@@ -360,7 +385,7 @@ class InspectorPanel(QDockWidget):
         card = _Card(name, on_remove=_remove)
         bl = card.body_layout()
 
-        # enabled checkbox in header area via body
+        # Enabled toggle
         en_row = QHBoxLayout()
         en_cb = _check(comp.enabled, "Enabled", lambda v: setattr(comp, "enabled", v))
         en_row.addWidget(en_cb)
@@ -390,20 +415,28 @@ class InspectorPanel(QDockWidget):
                     "Shape", _combo(list(p2.PRIMITIVES_2D), comp.shape, comp.set_shape)
                 )
             )
-            w = _spin(
-                0.01,
-                9999,
-                comp.size[0],
-                on_change=lambda v: comp.set_size(v, comp.size[1]),
+            bl.addWidget(
+                _FormRow(
+                    "Width",
+                    _spin(
+                        0.01,
+                        9999,
+                        comp.size[0],
+                        on_change=lambda v: comp.set_size(v, comp.size[1]),
+                    ),
+                )
             )
-            h = _spin(
-                0.01,
-                9999,
-                comp.size[1],
-                on_change=lambda v: comp.set_size(comp.size[0], v),
+            bl.addWidget(
+                _FormRow(
+                    "Height",
+                    _spin(
+                        0.01,
+                        9999,
+                        comp.size[1],
+                        on_change=lambda v: comp.set_size(comp.size[0], v),
+                    ),
+                )
             )
-            bl.addWidget(_FormRow("Width", w))
-            bl.addWidget(_FormRow("Height", h))
             bl.addWidget(
                 _FormRow(
                     "Color",
@@ -421,33 +454,43 @@ class InspectorPanel(QDockWidget):
                     "Shape", _combo(list(p2.PRIMITIVES_2D), comp.shape, comp.set_shape)
                 )
             )
-            w = _spin(
-                0.01,
-                9999,
-                comp.size[0],
-                on_change=lambda v: comp.set_size(v, comp.size[1]),
+            bl.addWidget(
+                _FormRow(
+                    "Width",
+                    _spin(
+                        0.01,
+                        9999,
+                        comp.size[0],
+                        on_change=lambda v: comp.set_size(v, comp.size[1]),
+                    ),
+                )
             )
-            h = _spin(
-                0.01,
-                9999,
-                comp.size[1],
-                on_change=lambda v: comp.set_size(comp.size[0], v),
+            bl.addWidget(
+                _FormRow(
+                    "Height",
+                    _spin(
+                        0.01,
+                        9999,
+                        comp.size[1],
+                        on_change=lambda v: comp.set_size(comp.size[0], v),
+                    ),
+                )
             )
-            bl.addWidget(_FormRow("Width", w))
-            bl.addWidget(_FormRow("Height", h))
             self._material_rows(bl, comp.material, comp)
-            fx = _check(
-                comp.flip_x,
-                "Flip X",
-                lambda v: (setattr(comp, "flip_x", v), setattr(comp, "_vao", None)),
+            bl.addWidget(
+                _check(
+                    comp.flip_x,
+                    "Flip X",
+                    lambda v: (setattr(comp, "flip_x", v), setattr(comp, "_vao", None)),
+                )
             )
-            fy = _check(
-                comp.flip_y,
-                "Flip Y",
-                lambda v: (setattr(comp, "flip_y", v), setattr(comp, "_vao", None)),
+            bl.addWidget(
+                _check(
+                    comp.flip_y,
+                    "Flip Y",
+                    lambda v: (setattr(comp, "flip_y", v), setattr(comp, "_vao", None)),
+                )
             )
-            bl.addWidget(fx)
-            bl.addWidget(fy)
 
         elif isinstance(comp, CameraComponent):
             bl.addWidget(
@@ -644,32 +687,37 @@ class InspectorPanel(QDockWidget):
             )
             pr = QHBoxLayout()
             pb = QPushButton("▶ Play")
-            pb.setFixedHeight(22)
+            pb.setFixedHeight(24)
             sb2 = QPushButton("⏹ Stop")
-            sb2.setFixedHeight(22)
+            sb2.setFixedHeight(24)
             pb.clicked.connect(lambda: comp.play() if comp.clip else None)
             sb2.clicked.connect(comp.stop)
             pr.addWidget(pb)
             pr.addWidget(sb2)
             bl.addLayout(pr)
             if comp.clip:
-                bl.addWidget(QLabel(f"Clip: {comp.clip.name}"))
+                clip_lbl = QLabel(f"Clip: {comp.clip.name}")
+                clip_lbl.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 11px;")
+                bl.addWidget(clip_lbl)
 
         elif isinstance(comp, ScriptComponent):
             path_lbl = QLabel(
                 Path(comp.script_path).name if comp.script_path else "(none)"
             )
-            path_lbl.setStyleSheet("color:#888; font-size:10px;")
+            path_lbl.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 11px;")
             path_lbl.setWordWrap(True)
             bl.addWidget(_FormRow("File", path_lbl))
 
             btn_row = QHBoxLayout()
             browse_btn = QPushButton("Browse…")
-            browse_btn.setFixedHeight(22)
             reload_btn = QPushButton("↺ Reload")
-            reload_btn.setFixedHeight(22)
             edit_btn = QPushButton("✎ Edit")
-            edit_btn.setFixedHeight(22)
+            for b in (browse_btn, reload_btn, edit_btn):
+                b.setFixedHeight(24)
+            btn_row.addWidget(browse_btn)
+            btn_row.addWidget(reload_btn)
+            btn_row.addWidget(edit_btn)
+            bl.addLayout(btn_row)
 
             def _pick():
                 p, _ = QFileDialog.getOpenFileName(
@@ -695,22 +743,17 @@ class InspectorPanel(QDockWidget):
 
             edit_btn.clicked.connect(_edit)
 
-            btn_row.addWidget(browse_btn)
-            btn_row.addWidget(reload_btn)
-            btn_row.addWidget(edit_btn)
-            bl.addLayout(btn_row)
-
             if comp._error:
                 err_lbl = QLabel(comp._error.splitlines()[-1][:120])
                 err_lbl.setStyleSheet(
-                    "color:#f55; font-size:9px; background:#2a1414;"
-                    "border-radius:3px; padding:3px;"
+                    f"color: {RED}; font-size: 10px; background: {RED_BG};"
+                    "border-radius: 3px; padding: 3px;"
                 )
                 err_lbl.setWordWrap(True)
                 bl.addWidget(err_lbl)
             elif comp._loaded:
                 ok_lbl = QLabel("✓ Loaded")
-                ok_lbl.setStyleSheet("color:#5f5; font-size:9px;")
+                ok_lbl.setStyleSheet(f"color: {GREEN}; font-size: 10px;")
                 bl.addWidget(ok_lbl)
 
         self._vbox.addWidget(card)
@@ -739,7 +782,6 @@ class InspectorPanel(QDockWidget):
             )
         )
 
-        # Texture
         tex_name = (
             Path(mat._tex_path).name
             if getattr(mat, "_tex_path", "")
@@ -747,12 +789,16 @@ class InspectorPanel(QDockWidget):
         )
         tex_row = QHBoxLayout()
         tex_lbl = QLabel(tex_name)
-        tex_lbl.setStyleSheet("color:#888; font-size:10px;")
+        tex_lbl.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 11px;")
         tex_row.addWidget(tex_lbl, 1)
 
         assign_btn = QPushButton("Assign…")
-        assign_btn.setFixedHeight(20)
-        assign_btn.setStyleSheet("QPushButton{font-size:10px;padding:1px 6px;}")
+        assign_btn.setFixedHeight(22)
+        assign_btn.setStyleSheet(
+            f"QPushButton{{font-size:11px;padding:1px 8px;background:{BG_INPUT};"
+            f"border:1px solid {BORDER_LIGHT};border-radius:4px;color:{TEXT_SECONDARY};}}"
+            f"QPushButton:hover{{border-color:{ACCENT};}}"
+        )
 
         def _assign():
             p, _ = QFileDialog.getOpenFileName(
@@ -779,9 +825,10 @@ class InspectorPanel(QDockWidget):
 
         if mat.use_texture:
             clr_btn = QPushButton("✕")
-            clr_btn.setFixedSize(20, 20)
+            clr_btn.setFixedSize(22, 22)
             clr_btn.setStyleSheet(
-                "QPushButton{color:#f55;border:none;background:transparent;}"
+                f"QPushButton{{color:{RED};border:none;background:transparent;font-size:12px;}}"
+                f"QPushButton:hover{{color:#ff4444;}}"
             )
 
             def _clear():
@@ -806,20 +853,18 @@ class InspectorPanel(QDockWidget):
         c = arr
         hex_col = f"#{int(c[0]*255):02x}{int(c[1]*255):02x}{int(c[2]*255):02x}"
         btn = QPushButton()
-        btn.setFixedSize(52, 20)
+        btn.setFixedSize(52, 22)
         btn.setStyleSheet(
-            f"background:{hex_col}; border:1px solid #555; border-radius:3px;"
+            f"background:{hex_col}; border:1px solid {BORDER_LIGHT}; border-radius:4px;"
         )
 
         def _pick():
-            from PySide6.QtWidgets import QColorDialog
-
             dlg = QColorDialog()
             if dlg.exec():
                 q = dlg.selectedColor()
                 on_change(q.redF(), q.greenF(), q.blueF(), q.alphaF())
                 btn.setStyleSheet(
-                    f"background:{q.name()}; border:1px solid #555; border-radius:3px;"
+                    f"background:{q.name()}; border:1px solid {BORDER_LIGHT}; border-radius:4px;"
                 )
 
         btn.clicked.connect(_pick)
@@ -829,11 +874,12 @@ class InspectorPanel(QDockWidget):
 
     def _build_add_button(self):
         btn = QPushButton("＋  Add Component")
-        btn.setFixedHeight(30)
+        btn.setFixedHeight(32)
         btn.setStyleSheet(
-            "QPushButton{background:#1e3a1e;border:1px solid #2e6b2e;"
-            "border-radius:5px;color:#5f5;font-size:11px;}"
-            "QPushButton:hover{background:#254a25;}"
+            f"QPushButton{{background:{GREEN_BG};border:1px solid {GREEN_BORDER};"
+            f"border-radius:5px;color:{GREEN};font-size:12px;}}"
+            f"QPushButton:hover{{background:#1f3828;}}"
+            f"QPushButton:pressed{{background:#141f18;}}"
         )
         btn.clicked.connect(self._on_add)
         self._vbox.addWidget(btn)

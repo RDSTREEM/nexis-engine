@@ -13,8 +13,9 @@ from typing import Optional
 
 import moderngl
 import numpy as np
-from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtCore import QPoint, Qt, QEvent, QTimer
 from PySide6.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
+from PySide6.QtWidgets import QApplication
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
 from core.camera import EditorCamera
@@ -30,7 +31,6 @@ class ViewportWidget(QOpenGLWidget):
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
         self.setFocus()
-        self.grabKeyboard()
 
         self.camera = EditorCamera(self.app.console, mode="3d")
         self.debug_draw = DebugDraw()
@@ -134,8 +134,6 @@ class ViewportWidget(QOpenGLWidget):
             self.ctx.viewport = (0, 0, w, h)
 
     def showEvent(self, event):
-        self.setFocus()
-        self.grabKeyboard()
         super().showEvent(event)
 
     # ── Tick ─────────────────────────────────────────────────────────────
@@ -334,10 +332,8 @@ class ViewportWidget(QOpenGLWidget):
     # ── Keyboard ──────────────────────────────────────────────────────────
 
     def keyPressEvent(self, event: QKeyEvent):
+        self._handle_key_press(event)
         key = event.key()
-        self.pressed_keys.add(key)
-        Input.on_key_press(key)
-
         play_mode = getattr(self.app, "play_mode", None)
         if play_mode and play_mode.is_playing:
             play_mode.send_input(key, True)
@@ -360,13 +356,21 @@ class ViewportWidget(QOpenGLWidget):
         super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event: QKeyEvent):
+        self._handle_key_release(event)
+        super().keyReleaseEvent(event)
+
+    def _handle_key_press(self, event: QKeyEvent):
+        key = event.key()
+        self.pressed_keys.add(key)
+        Input.on_key_press(key)
+
+    def _handle_key_release(self, event: QKeyEvent):
         key = event.key()
         self.pressed_keys.discard(key)
         Input.on_key_release(key)
         play_mode = getattr(self.app, "play_mode", None)
         if play_mode and play_mode.is_playing:
             play_mode.send_input(key, False)
-        super().keyReleaseEvent(event)
 
     def _try_pick(self, mx, my):
         scene = self.app.active_scene

@@ -1,12 +1,13 @@
 """
-hierarchy_panel.py — Reworked: cleaner header, better item styling,
-search bar, entity count.
+hierarchy_panel.py — Reworked.
+Consistent header bar, entity colors, search bar.
 """
 
 from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QDockWidget,
     QHBoxLayout,
@@ -22,6 +23,29 @@ from PySide6.QtWidgets import (
     QLabel,
 )
 
+from ui.theme import (
+    BG_SURFACE,
+    BG_HEADER,
+    BG_RAISED,
+    BG_INPUT,
+    ACCENT,
+    ACCENT_DIM,
+    BORDER,
+    BORDER_LIGHT,
+    TEXT_PRIMARY,
+    TEXT_SECONDARY,
+    TEXT_MUTED,
+    TAG_GROUP,
+    TAG_LIGHT,
+    TAG_AUDIO,
+    TAG_DISABLED,
+    GREEN,
+    GREEN_BG,
+    GREEN_BORDER,
+    PANEL_TOOLBAR_H,
+    ROW_H,
+)
+
 if TYPE_CHECKING:
     from core.entity import Entity
 
@@ -33,55 +57,82 @@ class HierarchyPanel(QDockWidget):
         self.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
 
         root_w = QWidget()
-        root_w.setStyleSheet("background:#1a1a1a;")
+        root_w.setStyleSheet(f"background: {BG_SURFACE};")
         lay = QVBoxLayout(root_w)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
 
-        # Header bar
+        # ── Header bar ────────────────────────────────────────────────
         hdr = QWidget()
-        hdr.setFixedHeight(32)
-        hdr.setStyleSheet("background:#141414;border-bottom:1px solid #222;")
+        hdr.setFixedHeight(PANEL_TOOLBAR_H)
+        hdr.setStyleSheet(
+            f"background: {BG_HEADER}; border-bottom: 1px solid {BORDER};"
+        )
         hdr_row = QHBoxLayout(hdr)
-        hdr_row.setContentsMargins(8, 0, 6, 0)
+        hdr_row.setContentsMargins(10, 0, 8, 0)
         hdr_row.setSpacing(4)
 
         self._count_lbl = QLabel("0 entities")
-        self._count_lbl.setStyleSheet("color:#444;font-size:10px;")
+        self._count_lbl.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 11px;")
         hdr_row.addWidget(self._count_lbl, 1)
 
         add_btn = QPushButton("+")
         add_btn.setFixedSize(22, 22)
         add_btn.setToolTip("Add Entity (Ctrl+Shift+A)")
-        add_btn.setStyleSheet("""
-            QPushButton{background:#1e3a1e;border:1px solid #2d6b2d;border-radius:3px;
-                        color:#5c5;font-weight:700;font-size:14px;}
-            QPushButton:hover{background:#254a25;}""")
+        add_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {GREEN_BG};
+                border: 1px solid {GREEN_BORDER};
+                border-radius: 4px;
+                color: {GREEN};
+                font-weight: 700;
+                font-size: 15px;
+                padding: 0;
+            }}
+            QPushButton:hover {{ background: #1f3828; }}
+            QPushButton:pressed {{ background: #141f18; }}
+        """)
         add_btn.clicked.connect(self.on_add_entity)
         hdr_row.addWidget(add_btn)
         lay.addWidget(hdr)
 
-        # Search bar
+        # ── Search bar ────────────────────────────────────────────────
         self._search = QLineEdit()
-        self._search.setPlaceholderText("🔍  Filter entities…")
-        self._search.setStyleSheet("""
-            QLineEdit{background:#111;border:none;border-bottom:1px solid #222;
-                      padding:5px 8px;color:#aaa;font-size:10px;}
-            QLineEdit:focus{border-bottom-color:#3c8dde;}""")
+        self._search.setPlaceholderText("  Filter entities…")
+        self._search.setFixedHeight(28)
+        self._search.setStyleSheet(f"""
+            QLineEdit {{
+                background: {BG_INPUT};
+                border: none;
+                border-bottom: 1px solid {BORDER};
+                padding: 4px 10px;
+                color: {TEXT_SECONDARY};
+                font-size: 11px;
+            }}
+            QLineEdit:focus {{ border-bottom-color: {ACCENT}; color: {TEXT_PRIMARY}; }}
+        """)
         self._search.textChanged.connect(self._filter)
         lay.addWidget(self._search)
 
-        # Tree
+        # ── Tree ──────────────────────────────────────────────────────
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
         self.tree.setIndentation(16)
-        self.tree.setStyleSheet("""
-            QTreeWidget{background:#1a1a1a;border:none;color:#ccc;outline:none;}
-            QTreeWidget::item{height:24px;padding-left:2px;}
-            QTreeWidget::item:hover{background:#212121;}
-            QTreeWidget::item:selected{background:#1e3a5f;color:#fff;}
-            QTreeWidget::branch:has-children:closed{image:none;}
-            QTreeWidget::branch:has-children:open{image:none;}
+        self.tree.setStyleSheet(f"""
+            QTreeWidget {{
+                background: {BG_SURFACE};
+                border: none;
+                color: {TEXT_PRIMARY};
+                outline: none;
+            }}
+            QTreeWidget::item {{
+                height: {ROW_H}px;
+                padding-left: 2px;
+            }}
+            QTreeWidget::item:hover {{ background: {BG_RAISED}; }}
+            QTreeWidget::item:selected {{ background: {ACCENT_DIM}; color: {TEXT_PRIMARY}; }}
+            QTreeWidget::branch:has-children:closed {{ image: none; }}
+            QTreeWidget::branch:has-children:open {{ image: none; }}
         """)
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._context_menu)
@@ -108,9 +159,7 @@ class HierarchyPanel(QDockWidget):
         if scene:
             scene_item = QTreeWidgetItem([f"  {scene.name}"])
             scene_item.setData(0, Qt.UserRole, None)
-            scene_item.setForeground(
-                0, __import__("PySide6.QtGui", fromlist=["QColor"]).QColor("#3c8dde")
-            )
+            scene_item.setForeground(0, QColor(ACCENT))
             self.tree.addTopLevelItem(scene_item)
             for entity in scene.entities:
                 count += 1 + len(entity.all_children_recursive())
@@ -127,19 +176,17 @@ class HierarchyPanel(QDockWidget):
             self._filter(filt)
 
     def _mk(self, entity: "Entity") -> QTreeWidgetItem:
-        from PySide6.QtGui import QColor, QFont
-
-        prefix = "●" if entity.enabled else "○"
-        item = QTreeWidgetItem([f" {prefix}  {entity.name}"])
+        enabled_dot = "●" if entity.enabled else "○"
+        item = QTreeWidgetItem([f" {enabled_dot}  {entity.name}"])
         item.setData(0, Qt.UserRole, entity.id)
         if not entity.enabled:
-            item.setForeground(0, QColor("#555"))
+            item.setForeground(0, QColor(TAG_DISABLED))
         elif "group" in entity.tags:
-            item.setForeground(0, QColor("#7ec8e3"))
+            item.setForeground(0, QColor(TAG_GROUP))
         elif "light" in entity.tags:
-            item.setForeground(0, QColor("#ffe08a"))
+            item.setForeground(0, QColor(TAG_LIGHT))
         elif "audio" in entity.tags:
-            item.setForeground(0, QColor("#c3a6ff"))
+            item.setForeground(0, QColor(TAG_AUDIO))
         return item
 
     def _add_children(self, parent_item, parent_entity) -> None:
@@ -151,8 +198,7 @@ class HierarchyPanel(QDockWidget):
             parent_item.setExpanded(True)
 
     def _highlight(self, eid: str) -> None:
-        it = self.tree.invisibleRootItem()
-        self._find_and_select(it, eid)
+        self._find_and_select(self.tree.invisibleRootItem(), eid)
 
     def _find_and_select(self, parent, eid: str) -> bool:
         for i in range(parent.childCount()):
@@ -167,8 +213,7 @@ class HierarchyPanel(QDockWidget):
 
     def _filter(self, text: str) -> None:
         text = text.lower().strip()
-        it = self.tree.invisibleRootItem()
-        self._filter_items(it, text)
+        self._filter_items(self.tree.invisibleRootItem(), text)
 
     def _filter_items(self, parent, text: str) -> bool:
         any_vis = False
@@ -226,22 +271,16 @@ class HierarchyPanel(QDockWidget):
     def _context_menu(self, pos) -> None:
         item = self.tree.itemAt(pos)
         menu = QMenu()
-        menu.setStyleSheet("""
-            QMenu{background:#1e1e1e;border:1px solid #333;border-radius:5px;padding:4px;}
-            QMenu::item{padding:5px 16px;color:#ccc;font-size:11px;border-radius:3px;}
-            QMenu::item:selected{background:#1e3a5f;color:#fff;}
-            QMenu::separator{height:1px;background:#2a2a2a;margin:4px 8px;}
-        """)
-        menu.addAction("➕  Add Entity", self.on_add_entity)
+        menu.addAction("Add Entity", self.on_add_entity)
         if item and item.data(0, Qt.UserRole):
-            menu.addAction("➕  Add Child", self._on_add_child)
-            menu.addAction("⧉   Duplicate", self._on_duplicate)
-            menu.addAction("🗂  Group", self._on_group)
+            menu.addAction("Add Child", self._on_add_child)
+            menu.addAction("Duplicate", self._on_duplicate)
+            menu.addAction("Group", self._on_group)
             menu.addSeparator()
-            menu.addAction("💾  Save as Prefab", self._on_prefab)
+            menu.addAction("Save as Prefab", self._on_prefab)
             menu.addSeparator()
-            menu.addAction("✎   Rename", self.on_rename_entity)
-            menu.addAction("🗑  Delete", self.on_delete_entity)
+            menu.addAction("Rename", self.on_rename_entity)
+            menu.addAction("Delete", self.on_delete_entity)
         menu.exec(self.tree.mapToGlobal(pos))
 
     # ── Operations ─────────────────────────────────────────────────────
@@ -308,7 +347,10 @@ class HierarchyPanel(QDockWidget):
         if not scene or not entity:
             return
         reply = QMessageBox.question(
-            self, "Delete", f"Delete '{entity.name}'?", QMessageBox.Yes | QMessageBox.No
+            self,
+            "Delete",
+            f"Delete '{entity.name}'?",
+            QMessageBox.Yes | QMessageBox.No,
         )
         if reply == QMessageBox.Yes:
             from core.undo_redo import DeleteEntityCommand, UndoStack

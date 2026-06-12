@@ -1,5 +1,6 @@
 """
-console_panel.py — Reworked: coloured log levels, timestamps, copy button.
+console_panel.py — Reworked.
+Consistent header bar. Fixed near-invisible timestamp color.
 """
 
 from __future__ import annotations
@@ -18,13 +19,25 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ui.theme import (
+    BG_SURFACE,
+    BG_INPUT,
+    BG_HEADER,
+    BORDER,
+    BORDER_LIGHT,
+    TEXT_PRIMARY,
+    TEXT_SECONDARY,
+    TEXT_MUTED,
+    PANEL_TOOLBAR_H,
+)
+
 
 class ConsolePanel(QDockWidget):
     COLOURS = {
         "INFO": ("#c8c8c8", "#1a1a1a"),
-        "WARNING": ("#f0c040", "#1a1500"),
-        "ERROR": ("#ff6060", "#1a0800"),
-        "SUCCESS": ("#55dd88", "#001a0a"),
+        "WARNING": ("#e0a030", "#1e1500"),
+        "ERROR": ("#e05555", "#1e0a0a"),
+        "SUCCESS": ("#4caf72", "#0a1e12"),
         "DEBUG": ("#666666", "#111111"),
     }
 
@@ -34,42 +47,48 @@ class ConsolePanel(QDockWidget):
         self.setAllowedAreas(Qt.BottomDockWidgetArea)
 
         wrapper = QWidget()
-        wrapper.setStyleSheet("background:#141414;")
+        wrapper.setStyleSheet(f"background: {BG_SURFACE};")
         lay = QVBoxLayout(wrapper)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
 
-        # toolbar
+        # ── Toolbar ───────────────────────────────────────────────────
         bar = QWidget()
-        bar.setFixedHeight(28)
-        bar.setStyleSheet("background:#111;border-bottom:1px solid #1e1e1e;")
+        bar.setFixedHeight(PANEL_TOOLBAR_H)
+        bar.setStyleSheet(
+            f"background: {BG_HEADER}; border-bottom: 1px solid {BORDER};"
+        )
         br = QHBoxLayout(bar)
-        br.setContentsMargins(8, 0, 8, 0)
+        br.setContentsMargins(10, 0, 8, 0)
         br.setSpacing(6)
 
-        br.addWidget(QLabel("Level:"))
+        lbl = QLabel("Level:")
+        lbl.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 11px;")
+        br.addWidget(lbl)
+
         self._filter = QComboBox()
         self._filter.addItems(["ALL", "INFO", "WARNING", "ERROR"])
         self._filter.setFixedWidth(80)
+        self._filter.setFixedHeight(22)
         self._filter.setStyleSheet(
-            "QComboBox{background:#1a1a1a;border:1px solid #2a2a2a;"
-            "border-radius:3px;padding:1px 6px;color:#aaa;font-size:10px;}"
+            f"QComboBox{{background:{BG_INPUT};border:1px solid {BORDER_LIGHT};"
+            f"border-radius:3px;padding:1px 6px;color:{TEXT_SECONDARY};font-size:11px;}}"
         )
         self._filter.currentTextChanged.connect(self._apply_filter)
         br.addWidget(self._filter)
         br.addStretch()
 
         self._count_lbl = QLabel("0 messages")
-        self._count_lbl.setStyleSheet("color:#444;font-size:10px;")
+        self._count_lbl.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 11px;")
         br.addWidget(self._count_lbl)
 
-        copy_btn = QPushButton("Copy")
-        copy_btn.setFixedHeight(20)
-        copy_btn.setStyleSheet(
-            "QPushButton{background:#1e1e1e;border:1px solid #333;"
-            "border-radius:3px;color:#888;padding:0 8px;font-size:10px;}"
-            "QPushButton:hover{background:#252525;color:#aaa;}"
+        btn_style = (
+            f"QPushButton{{background:transparent;border:1px solid transparent;"
+            f"border-radius:3px;color:{TEXT_MUTED};padding:0 8px;font-size:11px;height:22px;}}"
+            f"QPushButton:hover{{background:#2a2a2a;border-color:{BORDER_LIGHT};color:{TEXT_SECONDARY};}}"
         )
+        copy_btn = QPushButton("Copy")
+        copy_btn.setStyleSheet(btn_style)
         copy_btn.clicked.connect(
             lambda: __import__("PySide6.QtWidgets", fromlist=["QApplication"])
             .QApplication.clipboard()
@@ -78,17 +97,18 @@ class ConsolePanel(QDockWidget):
         br.addWidget(copy_btn)
 
         clear_btn = QPushButton("Clear")
-        clear_btn.setFixedHeight(20)
-        clear_btn.setStyleSheet(copy_btn.styleSheet())
+        clear_btn.setStyleSheet(btn_style)
         clear_btn.clicked.connect(self.clear)
         br.addWidget(clear_btn)
+
         lay.addWidget(bar)
 
+        # ── Log area ──────────────────────────────────────────────────
         self._log = QTextEdit()
         self._log.setReadOnly(True)
         self._log.setFont(QFont("Consolas", 9))
         self._log.setStyleSheet(
-            "QTextEdit{background:#141414;border:none;color:#aaa;" "padding:4px 8px;}"
+            f"QTextEdit{{background:{BG_SURFACE};border:none;color:{TEXT_PRIMARY};padding:4px 8px;}}"
         )
         lay.addWidget(self._log)
 
@@ -105,8 +125,9 @@ class ConsolePanel(QDockWidget):
         fg, bg = self.COLOURS.get(lvl, ("#c8c8c8", "#1a1a1a"))
         ts = time.strftime("%H:%M:%S")
         lvl_pad = f"{lvl:<8}"
+        # Timestamp uses #666 (was #333 — near-invisible)
         html = (
-            f'<span style="color:#333;">{ts}</span> '
+            f'<span style="color:#666;">{ts}</span> '
             f'<span style="color:{fg};background:{bg};'
             f'padding:1px 4px;border-radius:2px;font-size:9px;">{lvl_pad}</span> '
             f'<span style="color:{fg};">{message}</span><br>'

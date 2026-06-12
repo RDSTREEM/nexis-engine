@@ -1,7 +1,7 @@
 """
 main_window.py
-Added: Play in Window button, menu bar hidden on start screen,
-       undo/redo refreshes inspector.
+Reworked: uses theme.py for all colors. Menu bar hidden on start screen.
+Undo/redo refreshes inspector. Play in Window support.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ui.theme import DARK_QSS
 from ui.start_screen import CreateProjectDialog, StartScreen
 from ui.viewport import ViewportWidget
 from ui.panels.hierarchy_panel import HierarchyPanel
@@ -28,41 +29,6 @@ from ui.panels.asset_browser_panel import AssetBrowserPanel
 from ui.panels.script_editor_panel import ScriptEditorPanel
 from ui.panels.scene_list_panel import SceneListPanel
 
-_DARK = """
-QMainWindow,QWidget{background:#242424;color:#ddd;}
-QMenuBar{background:#1a1a1a;color:#ccc;border-bottom:1px solid #333;}
-QMenuBar::item:selected{background:#333;}
-QMenu{background:#242424;border:1px solid #3a3a3a;}
-QMenu::item:selected{background:#3c8dde;color:#fff;}
-QDockWidget{border:1px solid #333;}
-QDockWidget::title{background:#1a1a1a;padding:5px 8px;font-size:11px;
-                   color:#aaa;border-bottom:1px solid #333;}
-QTreeWidget{background:#202020;border:none;color:#ddd;alternate-background-color:#222;}
-QTreeWidget::item:selected{background:#3c8dde;color:#fff;}
-QTextEdit,QPlainTextEdit{background:#1a1a1a;color:#ccc;border:none;}
-QPushButton{background:#333;border:1px solid #484848;border-radius:4px;
-            padding:3px 10px;color:#ddd;}
-QPushButton:hover{background:#3c3c3c;border-color:#5a5a5a;}
-QPushButton:pressed{background:#222;border-color:#666;}
-QPushButton:checked{background:#2a4a7a;border-color:#3c8dde;color:#fff;}
-QPushButton:disabled{color:#555;background:#2a2a2a;border-color:#333;}
-QDoubleSpinBox,QSpinBox,QLineEdit,QComboBox{
-    background:#1e1e1e;border:1px solid #3a3a3a;
-    border-radius:3px;padding:2px 5px;color:#ddd;}
-QDoubleSpinBox:focus,QLineEdit:focus{border-color:#3c8dde;}
-QScrollBar:vertical{background:#1e1e1e;width:8px;border:none;}
-QScrollBar::handle:vertical{background:#444;border-radius:4px;min-height:24px;}
-QScrollBar::handle:vertical:hover{background:#555;}
-QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}
-QCheckBox,QLabel{color:#ddd;}
-QTabWidget::pane{border:1px solid #3a3a3a;background:#1e1e1e;}
-QTabBar::tab{background:#242424;color:#aaa;padding:5px 12px;
-             border:1px solid #3a3a3a;border-bottom:none;}
-QTabBar::tab:selected{background:#1e1e1e;color:#ddd;}
-QDialog{background:#242424;}
-QSplitter::handle{background:#333;}
-"""
-
 
 class MainWindow(QMainWindow):
     def __init__(self, app):
@@ -70,8 +36,8 @@ class MainWindow(QMainWindow):
         self.app = app
         self.setWindowTitle("NEXIS")
         self.resize(1440, 900)
-        self.setStyleSheet(_DARK)
-        self._play_window = None  # reference kept so it's not GC'd
+        self.setStyleSheet(DARK_QSS)
+        self._play_window = None
 
         self._build_menu()
         self._build_panels()
@@ -84,15 +50,15 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self) -> None:
         mb = self.menuBar()
-        mb.setVisible(False)  # hidden until project opens
+        mb.setVisible(False)
 
         fm = mb.addMenu("File")
-        self._add_action(fm, "New Project…", "Ctrl+Shift+N", self._on_create)
-        self._add_action(fm, "Open Project…", "Ctrl+O", self._on_open)
+        self._add_action(fm, "New Project", "Ctrl+Shift+N", self._on_create)
+        self._add_action(fm, "Open Project", "Ctrl+O", self._on_open)
         self._save_act = self._add_action(fm, "Save", "Ctrl+S", self.app.save_project)
         self._save_act.setEnabled(False)
         fm.addSeparator()
-        self._add_action(fm, "Project Settings…", "", lambda: self._open_settings())
+        self._add_action(fm, "Project Settings", "", lambda: self._open_settings())
         fm.addSeparator()
         self._close_act = self._add_action(
             fm, "Close Project", "", self.app.close_project
@@ -145,11 +111,11 @@ class MainWindow(QMainWindow):
             vm.addAction(a)
 
         pm = mb.addMenu("Play")
-        self._add_action(pm, "▶ Play", "Ctrl+P", self._on_play)
-        self._add_action(pm, "⏸ Pause", "Ctrl+Shift+P", self._on_pause)
-        self._add_action(pm, "⏹ Stop", "Ctrl+Shift+S", self._on_stop)
+        self._add_action(pm, "Play", "Ctrl+P", self._on_play)
+        self._add_action(pm, "Pause", "Ctrl+Shift+P", self._on_pause)
+        self._add_action(pm, "Stop", "Ctrl+Shift+S", self._on_stop)
         pm.addSeparator()
-        self._add_action(pm, "▶ Play in Window", "Ctrl+Shift+W", self._on_play_window)
+        self._add_action(pm, "Play in Window", "Ctrl+Shift+W", self._on_play_window)
 
         gm = mb.addMenu("Gizmo")
         self._add_action(
@@ -229,7 +195,7 @@ class MainWindow(QMainWindow):
 
         self.toolbar = ViewportToolbar(self)
         self.viewport = ViewportWidget(self.app)
-        self.toolbar._viewport = self.viewport  # Set reference for gizmo access
+        self.toolbar._viewport = self.viewport
 
         self.toolbar.sig_cam_toggle.connect(lambda m: self.viewport.camera.set_mode(m))
         self.toolbar.sig_play.connect(self._on_play)
@@ -299,6 +265,7 @@ class MainWindow(QMainWindow):
 
     def _on_play(self) -> None:
         self.app.play_mode.play()
+        self.viewport.setFocus()
 
     def _on_pause(self) -> None:
         self.app.play_mode.pause()
@@ -307,12 +274,10 @@ class MainWindow(QMainWindow):
         self.app.play_mode.stop()
 
     def _on_play_window(self) -> None:
-        """Launch the game in a separate window using game_runner.PlayWindow."""
         proj = self.app.project.project_path
         if proj is None:
             self.app.console.warning("No project open.")
             return
-        # Save first so the runner picks up latest changes
         self.app.save_project()
         try:
             from game_runner import PlayWindow

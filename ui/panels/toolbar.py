@@ -1,6 +1,6 @@
 """
-toolbar.py — Reworked professional toolbar.
-Clean, compact, icon-style buttons with play controls centre-stage.
+toolbar.py — Reworked viewport toolbar.
+Uses theme.py. Consistent sizing and colors with all other panels.
 """
 
 from __future__ import annotations
@@ -14,61 +14,109 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-_BASE = """
-QPushButton {{
-    background:{bg};
-    border:{border};
-    border-radius:4px;
-    color:{fg};
-    font-size:{fs};
-    padding:{pad};
-    min-width:{mw};
-}}
-QPushButton:hover {{ background:{hov}; }}
-QPushButton:pressed {{ background:{prs}; }}
-QPushButton:checked {{ background:{chk}; border-color:#3c8dde; color:#fff; }}
-QPushButton:disabled {{ color:#444; background:#1a1a1a; border-color:#2a2a2a; }}
-"""
+from ui.theme import (
+    ACCENT,
+    ACCENT_DIM,
+    BG_BASE,
+    BORDER,
+    TEXT_PRIMARY,
+    TEXT_SECONDARY,
+    TEXT_MUTED,
+    GREEN,
+    GREEN_BG,
+    GREEN_BORDER,
+    VIEWPORT_TOOLBAR_H,
+)
 
 
-def _icon_btn(
-    label: str, tooltip: str = "", primary: bool = False, checkable: bool = False
-) -> QPushButton:
+def _tool_btn(label: str, tooltip: str = "", checkable: bool = False) -> QPushButton:
+    """Small tool button — gizmo toggles, camera mode, etc."""
     btn = QPushButton(label)
     btn.setToolTip(tooltip)
     btn.setCheckable(checkable)
-    if primary:
-        s = _BASE.format(
-            bg="#1e3a1e",
-            border="1px solid #2d6b2d",
-            fg="#55cc55",
-            fs="14px",
-            pad="3px 12px",
-            mw="36px",
-            hov="#254a25",
-            prs="#162a16",
-            chk="#2d6b2d",
-        )
-    else:
-        s = _BASE.format(
-            bg="#222",
-            border="1px solid #333",
-            fg="#bbb",
-            fs="11px",
-            pad="3px 10px",
-            mw="30px",
-            hov="#2a2a2a",
-            prs="#1a1a1a",
-            chk="#1e3a5f",
-        )
-    btn.setStyleSheet(s)
+    btn.setStyleSheet(f"""
+        QPushButton {{
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            color: {TEXT_SECONDARY};
+            font-size: 11px;
+            padding: 3px 8px;
+            min-width: 28px;
+        }}
+        QPushButton:hover {{
+            background: #2a2a2a;
+            border-color: #3a3a3a;
+            color: {TEXT_PRIMARY};
+        }}
+        QPushButton:pressed {{ background: #222; }}
+        QPushButton:checked {{
+            background: {ACCENT_DIM};
+            border-color: {ACCENT};
+            color: {TEXT_PRIMARY};
+        }}
+        QPushButton:disabled {{ color: #3a3a3a; }}
+    """)
+    return btn
+
+
+def _play_btn(label: str, tooltip: str = "") -> QPushButton:
+    """Play control button — larger, prominent."""
+    btn = QPushButton(label)
+    btn.setToolTip(tooltip)
+    btn.setFixedWidth(38)
+    btn.setStyleSheet(f"""
+        QPushButton {{
+            background: {GREEN_BG};
+            border: 1px solid {GREEN_BORDER};
+            border-radius: 4px;
+            color: {GREEN};
+            font-size: 14px;
+            padding: 3px 15px;
+            min-width: 35px
+        }}
+        QPushButton:hover {{ background: #1f3828; border-color: #3a8a4a; }}
+        QPushButton:pressed {{ background: #141f18; }}
+        QPushButton:disabled {{ color: #2e4a38; background: #141a16; border-color: #1e2e22; }}
+    """)
+    return btn
+
+
+def _action_btn(label: str, tooltip: str = "") -> QPushButton:
+    """Secondary play action — pause, stop."""
+    btn = QPushButton(label)
+    btn.setToolTip(tooltip)
+    btn.setFixedWidth(34)
+    btn.setStyleSheet(f"""
+        QPushButton {{
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            color: {TEXT_SECONDARY};
+            font-size: 13px;
+            padding: 3px 15px;
+            min-width: 35px
+        }}
+        QPushButton:hover {{
+            background: #2a2a2a;
+            border-color: #3a3a3a;
+            color: {TEXT_PRIMARY};
+        }}
+        QPushButton:pressed {{ background: #222; }}
+        QPushButton:checked {{
+            background: {ACCENT_DIM};
+            border-color: {ACCENT};
+            color: {TEXT_PRIMARY};
+        }}
+        QPushButton:disabled {{ color: #3a3a3a; }}
+    """)
     return btn
 
 
 def _vline() -> QFrame:
     f = QFrame()
     f.setFrameShape(QFrame.VLine)
-    f.setStyleSheet("color:#2a2a2a;")
+    f.setStyleSheet("color: #2a2a2a;")
     f.setFixedWidth(1)
     return f
 
@@ -81,28 +129,32 @@ class ViewportToolbar(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._viewport = None  # Set after toolbar is created
-        self.setFixedHeight(38)
-        self.setStyleSheet("background:#141414;border-bottom:1px solid #1e1e1e;")
+        self._viewport = None
+        self.setFixedHeight(VIEWPORT_TOOLBAR_H)
+        self.setStyleSheet(f"background: {BG_BASE}; border-bottom: 1px solid {BORDER};")
 
         row = QHBoxLayout(self)
-        row.setContentsMargins(8, 0, 8, 0)
+        row.setContentsMargins(10, 0, 10, 0)
         row.setSpacing(4)
 
-        # ── Left: scene/project info ─────────────────────────────────
+        # ── Left: project / scene labels ─────────────────────────────
         self._project_lbl = QLabel("")
-        self._project_lbl.setStyleSheet("color:#555;font-size:10px;")
+        self._project_lbl.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 11px; background: {BG_BASE}; margin-right: 10px"
+        )
         row.addWidget(self._project_lbl)
 
         self._scene_lbl = QLabel("")
-        self._scene_lbl.setStyleSheet("color:#444;font-size:10px;")
+        self._scene_lbl.setStyleSheet(
+            f"color: {TEXT_SECONDARY}; font-size: 11px; background: {BG_BASE}; margin-right: 10px"
+        )
         row.addWidget(self._scene_lbl)
 
         row.addWidget(_vline())
 
-        # ── Camera mode toggle ───────────────────────────────────────
-        self._2d_btn = _icon_btn("2D", "Switch to 2D orthographic", checkable=True)
-        self._3d_btn = _icon_btn("3D", "Switch to 3D perspective", checkable=True)
+        # ── Camera mode ──────────────────────────────────────────────
+        self._2d_btn = _tool_btn("2D", "Orthographic view", checkable=True)
+        self._3d_btn = _tool_btn("3D", "Perspective view", checkable=True)
         self._3d_btn.setChecked(True)
         self._2d_btn.clicked.connect(lambda: self._cam_toggle("2d"))
         self._3d_btn.clicked.connect(lambda: self._cam_toggle("3d"))
@@ -112,9 +164,9 @@ class ViewportToolbar(QWidget):
         row.addWidget(_vline())
 
         # ── Gizmo mode ───────────────────────────────────────────────
-        self._t_btn = _icon_btn("⇔", "Translate [W]", checkable=True)
-        self._r_btn = _icon_btn("↻", "Rotate [E]", checkable=True)
-        self._s_btn = _icon_btn("⤡", "Scale [R]", checkable=True)
+        self._t_btn = _tool_btn("⇔", "Translate [W]", checkable=True)
+        self._r_btn = _tool_btn("↻", "Rotate [E]", checkable=True)
+        self._s_btn = _tool_btn("⤡", "Scale [R]", checkable=True)
         self._t_btn.setChecked(True)
         self._t_btn.clicked.connect(lambda: self._gizmo("translate"))
         self._r_btn.clicked.connect(lambda: self._gizmo("rotate"))
@@ -125,10 +177,11 @@ class ViewportToolbar(QWidget):
 
         row.addStretch()
 
-        # ── Centre: play controls ────────────────────────────────────
-        self._play_btn = _icon_btn("▶", "Play [Ctrl+P]", primary=True)
-        self._pause_btn = _icon_btn("⏸", "Pause [Ctrl+Shift+P]")
-        self._stop_btn = _icon_btn("⏹", "Stop [Ctrl+Shift+S]")
+        # ── Centre: play controls ─────────────────────────────────────
+        self._play_btn = _play_btn("Play", "Play [Ctrl+P]")
+        self._pause_btn = _action_btn("Pause", "Pause [Ctrl+Shift+P]")
+        self._stop_btn = _action_btn("Stop", "Stop [Ctrl+Shift+S]")
+        self._pause_btn.setCheckable(True)
         self._play_btn.clicked.connect(self.sig_play)
         self._pause_btn.clicked.connect(self.sig_pause)
         self._stop_btn.clicked.connect(self.sig_stop)
@@ -140,9 +193,11 @@ class ViewportToolbar(QWidget):
 
         row.addStretch()
 
-        # ── Right: fps counter ───────────────────────────────────────
+        # ── Right: fps counter ────────────────────────────────────────
         self._fps_lbl = QLabel("")
-        self._fps_lbl.setStyleSheet("color:#444;font-size:10px;min-width:60px;")
+        self._fps_lbl.setStyleSheet(
+            f"color: {TEXT_MUTED}; font-size: 11px; min-width: 60px;"
+        )
         self._fps_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         row.addWidget(self._fps_lbl)
 
@@ -167,13 +222,7 @@ class ViewportToolbar(QWidget):
         self._play_btn.setEnabled(not playing)
         self._pause_btn.setEnabled(playing)
         self._stop_btn.setEnabled(playing)
-        if playing:
-            self._play_btn.setStyleSheet(
-                self._play_btn.styleSheet().replace(
-                    "background:#1e3a1e", "background:#162a16"
-                )
-            )
-        else:
+        if not playing:
             self._fps_lbl.setText("")
 
     def set_paused(self, paused: bool) -> None:
@@ -193,6 +242,5 @@ class ViewportToolbar(QWidget):
         modes = ["translate", "rotate", "scale"]
         for i, b in enumerate(self._gizmo_btns):
             b.setChecked(modes[i] == mode)
-        # forward to viewport gizmo
         if self._viewport and hasattr(self._viewport, "gizmo"):
             self._viewport.gizmo.set_mode(mode)
