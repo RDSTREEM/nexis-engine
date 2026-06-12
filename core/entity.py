@@ -1,8 +1,3 @@
-"""
-entity.py
-Entity with parent/child hierarchy support (nesting/grouping).
-Every entity can have children. Transform is relative to parent.
-"""
 from __future__ import annotations
 import uuid
 from typing import Type, TypeVar, List, Optional, TYPE_CHECKING
@@ -19,14 +14,14 @@ T = TypeVar("T", bound=Component)
 
 class Entity:
     def __init__(self, name: str = "Entity", scene: "Scene | None" = None):
-        self.id:       str   = str(uuid.uuid4())
-        self.name:     str   = name
-        self.scene:    "Scene | None" = scene
-        self.enabled:  bool  = True
-        self.tags:     List[str] = []
+        self.id: str = str(uuid.uuid4())
+        self.name: str = name
+        self.scene: "Scene | None" = scene
+        self.enabled: bool = True
+        self.tags: List[str] = []
         self._components: List[Component] = []
-        self._children:   List["Entity"]  = []
-        self._parent:     Optional["Entity"] = None
+        self._children: List["Entity"] = []
+        self._parent: Optional["Entity"] = None
 
         self._transform = Transform()
         self._attach(self._transform)
@@ -63,7 +58,7 @@ class Entity:
         if child._parent is not None:
             child._parent.remove_child(child)
         child._parent = self
-        child.scene   = self.scene
+        child.scene = self.scene
         self._children.append(child)
         # remove from scene top-level if it was there
         if self.scene and child in self.scene._entities:
@@ -154,20 +149,27 @@ class Entity:
 
     def on_start(self) -> None:
         for c in self._components:
-            if c.enabled: c.on_start()
+            if c.enabled:
+                c.on_start()
         for child in self._children:
-            if child.enabled: child.on_start()
+            if child.enabled:
+                child.on_start()
 
     def on_update(self, dt: float) -> None:
-        if not self.enabled: return
+        if not self.enabled:
+            return
         for c in self._components:
-            if c.enabled: c.on_update(dt)
+            if c.enabled:
+                c.on_update(dt)
         for child in self._children:
-            if child.enabled: child.on_update(dt)
+            if child.enabled:
+                child.on_update(dt)
 
     def on_stop(self) -> None:
-        for c in self._components: c.on_stop()
-        for child in self._children: child.on_stop()
+        for c in self._components:
+            c.on_stop()
+        for child in self._children:
+            child.on_stop()
 
     # ------------------------------------------------------------------
     # Serialization
@@ -175,31 +177,32 @@ class Entity:
 
     def to_dict(self) -> dict:
         return {
-            "id":         self.id,
-            "name":       self.name,
-            "enabled":    self.enabled,
-            "tags":       self.tags,
+            "id": self.id,
+            "name": self.name,
+            "enabled": self.enabled,
+            "tags": self.tags,
             "components": [c.to_dict() for c in self._components],
-            "children":   [c.to_dict() for c in self._children],
+            "children": [c.to_dict() for c in self._children],
         }
 
     @classmethod
-    def from_dict(cls, data: dict,
-                  scene: "Scene | None" = None) -> "Entity":
+    def from_dict(cls, data: dict, scene: "Scene | None" = None) -> "Entity":
         from core.component_registry import deserialize_component
-        e        = cls.__new__(cls)
-        e.id     = data.get("id", str(uuid.uuid4()))
-        e.name   = data.get("name", "Entity")
-        e.scene  = scene
-        e.enabled= data.get("enabled", True)
-        e.tags   = data.get("tags", [])
+
+        e = cls.__new__(cls)
+        e.id = data.get("id", str(uuid.uuid4()))
+        e.name = data.get("name", "Entity")
+        e.scene = scene
+        e.enabled = data.get("enabled", True)
+        e.tags = data.get("tags", [])
         e._components = []
-        e._children   = []
-        e._parent     = None
+        e._children = []
+        e._parent = None
 
         for comp_data in data.get("components", []):
             comp = deserialize_component(comp_data)
-            if comp: e._attach(comp)
+            if comp:
+                e._attach(comp)
 
         if not e.has_component(Transform):
             e._transform = Transform()

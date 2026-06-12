@@ -1,31 +1,6 @@
-"""
-amharic_transpiler.py
-Full Amharic scripting — ALL identifiers, API names, and lifecycle methods
-are in Amharic. English keywords also accepted for compatibility.
-
-Key Amharic → Python mappings:
-  ራስ           → self
-  ነፍስ          → entity
-  ሲጀምር         → on_start
-  ሲዘምን         → on_update
-  ሲቆም          → on_stop
-  ሲገቡ          → on_input
-  ሲጋጩ         → on_collision_enter
-  ሲለያዩ        → on_collision_exit
-  ቦታ           → transform
-  ቦታ_ቁ        → position
-  ሽክርክሪ       → rotation
-  ልኬት         → scale
-  ግቤት          → Input
-  ጊዜ           → Time
-  ክስተቶች       → Events
-  ትዕይንቶች      → SceneManager
-"""
-
 from __future__ import annotations
 import re
 
-# ── Language keywords (longest first to avoid partial substitution) ──────────
 _KEYWORDS: list[tuple[str, str]] = [
     ("ለእያንዳንዱ", "for"),
     ("ምንም_ሳይሆን", "pass"),
@@ -57,7 +32,6 @@ _KEYWORDS: list[tuple[str, str]] = [
     ("ከ", "from"),
 ]
 
-# ── Identifier / API mapping ──────────────────────────────────────────────────
 _IDENTIFIERS: list[tuple[str, str]] = [
     # self
     ("ራስ", "self"),

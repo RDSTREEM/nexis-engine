@@ -1,8 +1,3 @@
-"""
-toolbar.py — Reworked viewport toolbar.
-Uses theme.py. Consistent sizing and colors with all other panels.
-"""
-
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal

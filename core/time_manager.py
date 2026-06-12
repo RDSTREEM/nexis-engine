@@ -1,15 +1,3 @@
-"""
-time_manager.py
-Global time state accessible from scripts.
-from core.time_manager import Time
-
-Time.delta_time   — seconds since last frame (capped at 0.05)
-Time.elapsed      — total seconds since play mode started
-Time.frame_count  — frames since play mode started
-Time.fps          — smoothed frames per second
-Time.time_scale   — multiplier (0 = paused, 0.5 = slow-mo, 1 = normal)
-"""
-
 from __future__ import annotations
 import time as _time
 

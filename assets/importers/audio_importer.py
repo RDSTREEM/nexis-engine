@@ -1,11 +1,3 @@
-"""
-audio_importer.py
-Imports audio files via soundfile (no pygame dependency).
-Playback uses sounddevice which is Qt-safe (runs in its own thread).
-
-Install: pip install soundfile sounddevice
-"""
-
 from __future__ import annotations
 from pathlib import Path
 from dataclasses import dataclass

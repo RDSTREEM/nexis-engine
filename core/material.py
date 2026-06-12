@@ -1,9 +1,3 @@
-"""
-material.py
-FIX: __init__ signature normalised — shader is always optional keyword arg.
-Added: upload_texture_from_path(), _tex_path for save/load, reload_texture().
-"""
-
 from __future__ import annotations
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING

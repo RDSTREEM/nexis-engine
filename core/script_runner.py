@@ -1,10 +1,3 @@
-"""
-script_runner.py
-Executes all ScriptComponents in a scene safely.
-Provides a controlled globals dict so scripts can access engine APIs
-without importing anything dangerous.
-"""
-
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import traceback

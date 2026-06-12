@@ -1,9 +1,3 @@
-"""
-scene.py
-FIX: _render_entity uses try/finally so transform is always restored.
-FIX: _find_main_camera is public (used by viewport play mode render).
-"""
-
 from __future__ import annotations
 from typing import List, Optional, TYPE_CHECKING
 import numpy as np
@@ -20,8 +14,6 @@ class Scene:
         self.scene_type: str = scene_type
         self._entities: list = []
         self._physics_world = None  # set by PlayMode._init_physics
-
-    # ── Entity management ─────────────────────────────────────────────
 
     def create_entity(self, name: str = "Entity", template_fn=None):
         from core.entity import Entity

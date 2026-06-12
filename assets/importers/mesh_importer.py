@@ -1,9 +1,3 @@
-"""
-mesh_importer.py
-Imports .obj / .gltf / .glb / .fbx via trimesh.
-Returns a flat float32 numpy array: (pos3, normal3, uv2) per vertex.
-"""
-
 from __future__ import annotations
 from pathlib import Path
 import numpy as np

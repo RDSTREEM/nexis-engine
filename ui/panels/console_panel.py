@@ -1,8 +1,3 @@
-"""
-console_panel.py — Reworked.
-Consistent header bar. Fixed near-invisible timestamp color.
-"""
-
 from __future__ import annotations
 import time
 

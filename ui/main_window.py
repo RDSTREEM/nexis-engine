@@ -1,9 +1,3 @@
-"""
-main_window.py
-Reworked: uses theme.py for all colors. Menu bar hidden on start screen.
-Undo/redo refreshes inspector. Play in Window support.
-"""
-
 from __future__ import annotations
 from pathlib import Path
 
@@ -45,8 +39,6 @@ class MainWindow(QMainWindow):
 
         self.app.console.set_ui_widget(self.console.log_widget())
         self.show_start_screen()
-
-    # ── Menu ─────────────────────────────────────────────────────────────
 
     def _build_menu(self) -> None:
         mb = self.menuBar()
@@ -143,8 +135,6 @@ class MainWindow(QMainWindow):
         else:
             self.inspector.clear()
 
-    # ── Panels ───────────────────────────────────────────────────────────
-
     def _build_panels(self) -> None:
         self.hierarchy = HierarchyPanel(self.app, self)
         self.inspector = InspectorPanel(self.app, self)
@@ -175,8 +165,6 @@ class MainWindow(QMainWindow):
             self.scene_list,
         ):
             dock.setVisible(False)
-
-    # ── Central ───────────────────────────────────────────────────────────
 
     def _build_central(self) -> None:
         self.stack = QStackedWidget()
@@ -209,8 +197,6 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(vp_wrap)
         self.setCentralWidget(self.stack)
 
-    # ── Visibility ────────────────────────────────────────────────────────
-
     def _editor_mode(self, on: bool) -> None:
         for dock in (
             self.hierarchy,
@@ -237,8 +223,6 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentIndex(1)
         self.setWindowTitle(f"NEXIS — {self.app.project.project_name}")
 
-    # ── Project loaded ────────────────────────────────────────────────────
-
     def on_project_loaded(self) -> None:
         pt = self.app.project_type
         self.viewport.camera.set_mode("2d" if pt == "2D" else "3d")
@@ -260,8 +244,6 @@ class MainWindow(QMainWindow):
         from ui.panels.settings_panel import open_settings
 
         open_settings(self.app, self)
-
-    # ── Play ──────────────────────────────────────────────────────────────
 
     def _on_play(self) -> None:
         self.app.play_mode.play()
@@ -286,8 +268,6 @@ class MainWindow(QMainWindow):
             self.app.console.info("Game window opened.")
         except Exception as e:
             self.app.console.error(f"Could not open game window: {e}")
-
-    # ── Dialogs ───────────────────────────────────────────────────────────
 
     def _on_create(self) -> None:
         dlg = CreateProjectDialog(self)

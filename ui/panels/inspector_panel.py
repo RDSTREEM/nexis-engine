@@ -1,9 +1,3 @@
-"""
-inspector_panel.py — Reworked.
-Consistent card styling, unified colors from theme.py.
-Wider form labels, readable spinbox text, proper card collapse.
-"""
-
 from __future__ import annotations
 from pathlib import Path
 from typing import Optional
@@ -52,12 +46,8 @@ from ui.theme import (
     FORM_LABEL_W,
 )
 
-# ── Helpers ───────────────────────────────────────────────────────────────
-
 
 class _Card(QWidget):
-    """Collapsible component card."""
-
     def __init__(self, title: str, on_remove=None, parent=None):
         super().__init__(parent)
         self._collapsed = False

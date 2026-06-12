@@ -1,14 +1,15 @@
-"""
-entity_picker.py
-"Create Entity" dialog — shows categorised entity templates with descriptions.
-Replaces the plain text QInputDialog for adding entities.
-"""
 from __future__ import annotations
-from PySide6.QtCore    import Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QDialog, QDialogButtonBox, QHBoxLayout,
-    QLabel, QListWidget, QListWidgetItem,
-    QVBoxLayout, QWidget, QLineEdit,
+    QDialog,
+    QDialogButtonBox,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QVBoxLayout,
+    QWidget,
+    QLineEdit,
 )
 from core.entity_templates import TEMPLATES
 
@@ -55,7 +56,7 @@ class EntityPickerDialog(QDialog):
         self._desc_title = QLabel("")
         self._desc_title.setWordWrap(True)
         self._desc_title.setStyleSheet("font-weight:bold;color:#ddd;")
-        self._desc_body  = QLabel("")
+        self._desc_body = QLabel("")
         self._desc_body.setWordWrap(True)
         self._desc_body.setStyleSheet("color:#aaa;font-size:10px;")
         dp_lay.addWidget(self._desc_title)
@@ -73,8 +74,7 @@ class EntityPickerDialog(QDialog):
         layout.addLayout(name_row)
 
         # buttons
-        btns = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(self._on_ok)
         btns.rejected.connect(self.reject)
         layout.addWidget(btns)
@@ -97,7 +97,7 @@ class EntityPickerDialog(QDialog):
             self._tmpl_list.setCurrentRow(0)
 
     def _filter(self) -> None:
-        cat    = self._cat_list.currentItem()
+        cat = self._cat_list.currentItem()
         cat_txt = cat.text() if cat else "All"
         self._populate(cat_txt, self._search.text().strip())
 

@@ -1,11 +1,3 @@
-"""
-debug_draw.py
-FIX: Grid is now infinite — it scrolls with the camera by snapping
-     the grid origin to the nearest grid cell under the camera.
-     This gives the illusion of an infinite grid without drawing
-     thousands of lines.
-"""
-
 from __future__ import annotations
 from typing import Optional
 import numpy as np

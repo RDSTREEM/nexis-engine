@@ -1,9 +1,3 @@
-"""
-game_runner.py
-Headless NEXIS game runner — runs a project WITHOUT the editor UI.
-FIX: rb.velocity → physics body sync before step (same fix as play_mode.py).
-"""
-
 from __future__ import annotations
 import sys
 import json
@@ -47,8 +41,6 @@ class GameWidget(QOpenGLWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(16)
-
-    # ── GL ──────────────────────────────────────────────────────────────
 
     def initializeGL(self):
         self._ctx = moderngl.create_context()
@@ -124,30 +116,22 @@ class GameWidget(QOpenGLWidget):
                         sc.on_input(event.key(), False)
         return super().eventFilter(obj, event)
 
-    # ── Game loop ────────────────────────────────────────────────────────
-
     def _tick(self):
         if not self._ready:
             return
         self._Input.begin_frame()
         dt = self._Time.tick()
 
-        # 1. Run scripts (they may set rb.velocity)
         self._scene.update(dt)
 
-        # 2. FIX: copy rb.velocity → body.velocity BEFORE physics step
         self._sync_script_velocity_to_physics()
 
-        # 3. Step physics
         self._physics.step(dt)
 
-        # 4. Copy results back to transforms
         self._sync_physics_to_transforms()
         self._fire_collision_callbacks()
 
         self.update()
-
-    # ── Physics helpers ───────────────────────────────────────────────────
 
     def _init_physics(self) -> None:
         from core.physics_2d import Rigidbody2D, BoxCollider2D, CircleCollider2D
@@ -180,7 +164,6 @@ class GameWidget(QOpenGLWidget):
         self._scene._physics_world = self._physics
 
     def _sync_script_velocity_to_physics(self) -> None:
-        """THE FIX: copy rb.velocity (set by scripts) into the physics body."""
         from core.physics_2d import Rigidbody2D
 
         if self._scene is None:
@@ -237,8 +220,6 @@ class GameWidget(QOpenGLWidget):
                         except Exception as e:
                             self._console.error(f"[{entity.name}] {method} error: {e}")
         self._physics._collision_events.clear()
-
-    # ── Input ─────────────────────────────────────────────────────────────
 
     def mousePressEvent(self, ev):
         self.setFocus()

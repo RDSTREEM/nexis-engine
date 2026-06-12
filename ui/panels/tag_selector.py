@@ -1,8 +1,3 @@
-"""
-tag_selector.py — Tag selection dialog for entity inspector.
-Select from predefined project tags with ability to add new ones.
-"""
-
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
@@ -21,11 +16,6 @@ from PySide6.QtWidgets import (
 
 
 class TagSelectorDialog(QDialog):
-    """
-    Select tags for an entity from predefined project tags.
-    Allows selecting multiple tags and adding new custom tags.
-    """
-
     def __init__(self, current_tags: list, project, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Select Tags")

@@ -1,9 +1,3 @@
-"""
-hot_reload.py
-Watches script files for changes and reloads them live during play mode.
-Uses a background thread with os.stat polling (no extra deps needed).
-"""
-
 from __future__ import annotations
 import os
 import threading

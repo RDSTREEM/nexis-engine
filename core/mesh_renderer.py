@@ -1,9 +1,3 @@
-"""
-mesh_renderer.py
-FIX: Material() constructor called correctly — no more positional arg crash.
-     _tex_path restored after scene load via material.reload_texture(ctx).
-"""
-
 from __future__ import annotations
 from typing import Optional
 import numpy as np

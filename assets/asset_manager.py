@@ -1,10 +1,3 @@
-"""
-asset_manager.py
-Central registry for all imported assets.
-Assets are keyed by their absolute path string.
-Importers register themselves for file extensions.
-"""
-
 from __future__ import annotations
 
 import hashlib

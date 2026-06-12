@@ -1,9 +1,3 @@
-"""
-sprite_renderer.py
-FIX: Material construction uses keyword args throughout.
-FIX: SpriteRenderer._build_vao calls material.reload_texture(ctx).
-"""
-
 from __future__ import annotations
 from typing import Optional
 import numpy as np

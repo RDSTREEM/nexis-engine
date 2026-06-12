@@ -1,8 +1,3 @@
-"""
-camera_auto.py
-Auto-creates a main camera in new scenes so Play mode is never a black screen.
-"""
-
 from __future__ import annotations
 
 

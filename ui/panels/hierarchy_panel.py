@@ -1,8 +1,3 @@
-"""
-hierarchy_panel.py — Reworked.
-Consistent header bar, entity colors, search bar.
-"""
-
 from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 

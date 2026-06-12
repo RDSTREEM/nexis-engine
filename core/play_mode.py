@@ -1,20 +1,3 @@
-"""
-play_mode.py
-
-ROOT CAUSE OF MOVEMENT BUG:
-  Scripts write to rb.velocity (the Rigidbody2D component's list).
-  But PhysicsWorld2D.step() uses PhysicsBody.velocity (its own list).
-  _sync_physics_to_transforms() copies body→rb each frame, but nothing
-  ever copies rb→body, so script velocity changes are silently discarded.
-
-FIX:
-  Added _sync_script_velocity_to_physics() which runs BEFORE physics.step().
-  It copies rb.velocity → body.velocity so script changes actually take effect.
-
-  Also added rb.apply_force() and rb.apply_impulse() helpers so scripts
-  can use those instead of setting velocity directly.
-"""
-
 from __future__ import annotations
 import copy
 import time

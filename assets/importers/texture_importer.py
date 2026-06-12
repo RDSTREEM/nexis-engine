@@ -1,9 +1,3 @@
-"""
-texture_importer.py
-Imports image files via Pillow → returns raw RGBA bytes + size.
-The moderngl Texture is created lazily when the GL context is available.
-"""
-
 from __future__ import annotations
 from pathlib import Path
 from dataclasses import dataclass

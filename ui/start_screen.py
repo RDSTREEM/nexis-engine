@@ -1,8 +1,3 @@
-"""
-start_screen.py — Reworked start screen.
-Consistent with editor dark theme. Single accent color throughout.
-"""
-
 from __future__ import annotations
 import json
 from pathlib import Path

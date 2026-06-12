@@ -1,12 +1,3 @@
-"""
-viewport.py
-FIX: Play mode now renders from the scene's main CameraComponent.
-FIX: Infinite grid passes camera position so it scrolls correctly.
-FIX: W/E/R gizmo keys only fire when right mouse NOT held.
-FIX: Free-drag translation on entity body.
-FIX: Larger gizmo handles.
-"""
-
 from __future__ import annotations
 import time
 from typing import Optional
@@ -45,7 +36,6 @@ class ViewportWidget(QOpenGLWidget):
         self.left_btn_down: bool = False
         self.pressed_keys: set = set()
 
-        # free-drag state
         self._free_drag: bool = False
         self._free_drag_start_mouse: Optional[QPoint] = None
         self._free_drag_start_pos: Optional[np.ndarray] = None
@@ -56,8 +46,6 @@ class ViewportWidget(QOpenGLWidget):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._on_tick)
         self.timer.start(16)
-
-    # ── GL ────────────────────────────────────────────────────────────────
 
     def initializeGL(self):
         self.ctx = moderngl.create_context()
@@ -78,7 +66,6 @@ class ViewportWidget(QOpenGLWidget):
         playing = play_mode is not None and play_mode.is_playing
 
         if playing:
-            # ── PLAY MODE: use the scene's CameraComponent ─────────────────
             if scene:
                 cam = scene._find_main_camera()
                 if cam:
@@ -88,19 +75,16 @@ class ViewportWidget(QOpenGLWidget):
                     proj = cam.get_projection_matrix(w, h)
                     scene.render_editor(self.ctx, view, proj)
                 else:
-                    # No camera — show a "no camera" overlay
                     self.ctx.clear(0.05, 0.05, 0.05, 1.0)
                     self._draw_no_camera_msg()
             else:
                 self.ctx.clear(0.05, 0.05, 0.05, 1.0)
         else:
-            # ── EDITOR MODE ───────────────────────────────────────────────
             self.ctx.clear(0.1, 0.12, 0.18, 1.0)
             view, proj = self.camera.get_matrices(w, h)
             if scene:
                 scene.render_editor(self.ctx, view, proj)
 
-            # Get camera world position for infinite grid
             inv_view = np.linalg.inv(view)
             cam_pos = inv_view[:3, 3]
 
@@ -116,7 +100,6 @@ class ViewportWidget(QOpenGLWidget):
                 self.debug_draw.selection_box(center, half + 0.05)
             self.debug_draw.end()
 
-            # Gizmo overlay
             self.gizmo.set_entity(self.app.selector.selected_entity)
             self.gizmo.set_2d(self.camera.mode == "2d")
             self.debug_draw.begin(view, proj)
@@ -124,9 +107,6 @@ class ViewportWidget(QOpenGLWidget):
             self.debug_draw.end()
 
     def _draw_no_camera_msg(self):
-        """Simple overlay when play mode has no main camera."""
-        # We can't easily draw text in ModernGL, so just leave it dark.
-        # The console warning covers it.
         pass
 
     def resizeGL(self, w, h):
@@ -135,8 +115,6 @@ class ViewportWidget(QOpenGLWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
-
-    # ── Tick ─────────────────────────────────────────────────────────────
 
     def _on_tick(self):
         now = time.perf_counter()
@@ -157,8 +135,6 @@ class ViewportWidget(QOpenGLWidget):
             if play_mode and play_mode.is_playing:
                 mw.toolbar.set_fps(Time.fps)
         self.update()
-
-    # ── Mouse ─────────────────────────────────────────────────────────────
 
     def mousePressEvent(self, event: QMouseEvent):
         self.setFocus()
@@ -329,8 +305,6 @@ class ViewportWidget(QOpenGLWidget):
         if not (play_mode and play_mode.is_playing):
             self.camera.zoom(delta)
 
-    # ── Keyboard ──────────────────────────────────────────────────────────
-
     def keyPressEvent(self, event: QKeyEvent):
         self._handle_key_press(event)
         key = event.key()
@@ -340,7 +314,6 @@ class ViewportWidget(QOpenGLWidget):
             super().keyPressEvent(event)
             return
 
-        # W/E/R only switch gizmo when NOT flying (right mouse not held)
         if not self.right_btn_down:
             if key == Qt.Key_W:
                 self.gizmo.set_mode(TRANSLATE)

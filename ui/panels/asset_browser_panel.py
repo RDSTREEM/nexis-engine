@@ -1,10 +1,3 @@
-"""
-asset_browser_panel.py
-Shows imported assets grouped by type.
-Double-click a mesh asset to add it to the scene.
-Double-click a texture to assign to selected entity's material.
-"""
-
 from __future__ import annotations
 from pathlib import Path
 

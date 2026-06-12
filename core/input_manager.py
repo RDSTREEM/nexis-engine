@@ -1,10 +1,3 @@
-"""
-input_manager.py
-Centralized input state accessible from scripts via Input.get_key() etc.
-ViewportWidget feeds events into InputManager every frame.
-Scripts access it as a singleton: from core.input_manager import Input
-"""
-
 from __future__ import annotations
 from typing import Set, Tuple
 import numpy as np

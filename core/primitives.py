@@ -1,9 +1,3 @@
-"""
-primitives.py — Built-in mesh generators.
-Each function returns a flat float32 numpy array with layout:
-  (x, y, z,  nx, ny, nz,  u, v)  — 8 floats per vertex, triangle list.
-"""
-
 from __future__ import annotations
 import math
 import numpy as np

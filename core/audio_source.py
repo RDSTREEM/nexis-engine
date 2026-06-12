@@ -1,8 +1,3 @@
-"""
-audio_source.py
-FIX: _run() was `self.clip.samples * self.clip` → `* self.volume`.
-"""
-
 from __future__ import annotations
 import threading
 from typing import Optional, TYPE_CHECKING

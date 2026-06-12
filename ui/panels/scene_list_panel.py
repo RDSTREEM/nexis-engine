@@ -1,9 +1,3 @@
-"""
-scene_list_panel.py
-Shows all .nexis_scene files in the project.
-Double-click to load, drag to set startup scene order.
-"""
-
 from __future__ import annotations
 from pathlib import Path
 

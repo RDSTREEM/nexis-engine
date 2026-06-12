@@ -1,10 +1,3 @@
-"""
-entity_templates.py
-Factory functions for common entity types.
-FIX: Removed stale Material/Shader imports. mesh_entity no longer passes
-     Material directly — MeshRenderer handles its own default material.
-"""
-
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
@@ -19,9 +12,6 @@ def _make(scene: "Scene", name: str) -> "Entity":
     return Entity(name=name, scene=scene)
 
 
-# ── General ──────────────────────────────────────────────────────────────────
-
-
 def empty_entity(scene, name="Empty") -> "Entity":
     return _make(scene, name)
 
@@ -30,9 +20,6 @@ def group_entity(scene, name="Group") -> "Entity":
     e = _make(scene, name)
     e.tags.append("group")
     return e
-
-
-# ── 3D ───────────────────────────────────────────────────────────────────────
 
 
 def mesh_entity(scene, name="Mesh", primitive="cube") -> "Entity":

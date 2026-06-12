@@ -1,13 +1,3 @@
-"""
-primitives_2d.py — Built-in 2D mesh generators.
-
-All functions return a flat float32 numpy array with layout:
-  (x, y,  u, v)  — 4 floats per vertex, triangle list.
-
-Coordinates are in world units centered at origin unless noted.
-Use with the sprite shader (in_position: vec2, in_uv: vec2).
-"""
-
 from __future__ import annotations
 import math
 import numpy as np

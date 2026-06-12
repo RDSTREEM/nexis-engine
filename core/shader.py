@@ -4,10 +4,6 @@ from typing import Optional
 
 import moderngl
 
-# ------------------------------------------------------------------
-# Built-in shader sources
-# ------------------------------------------------------------------
-
 _MESH_VERT = """
 #version 330
 in vec3 in_position;

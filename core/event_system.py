@@ -1,21 +1,3 @@
-"""
-event_system.py
-Simple publish/subscribe event bus for inter-entity communication.
-Scripts can emit and listen to named events without direct references.
-
-Usage:
-    from core.event_system import Events
-
-    # subscribe (usually in on_start)
-    Events.on("player_died", self.handle_death)
-
-    # emit (from anywhere)
-    Events.emit("player_died", {"score": 100})
-
-    # unsubscribe (in on_stop)
-    Events.off("player_died", self.handle_death)
-"""
-
 from __future__ import annotations
 from typing import Callable, Any
 import traceback

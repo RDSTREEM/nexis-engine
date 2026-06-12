@@ -1,9 +1,3 @@
-"""
-script_editor_panel.py
-Full Amharic syntax highlighting, live transpile preview pane,
-auto-complete snippet for new .amh files.
-"""
-
 from __future__ import annotations
 from pathlib import Path
 from typing import Optional
@@ -32,7 +26,6 @@ _FONT = QFont("Consolas", 11)
 _FONT.setStyleHint(QFont.Monospace)
 
 
-# ── colour tokens ─────────────────────────────────────────────────────────
 def _fmt(colour: str, bold: bool = False) -> QTextCharFormat:
     f = QTextCharFormat()
     f.setForeground(QColor(colour))
