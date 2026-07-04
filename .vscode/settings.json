@@ -1,0 +1,10 @@
+{
+  "python-envs.defaultEnvManager": "ms-python.python:venv",
+  "editor.formatOnSave": true,
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "chat.tools.terminal.autoApprove": {
+    ".\\.venv\\Scripts\\python.exe": true
+  }
+}

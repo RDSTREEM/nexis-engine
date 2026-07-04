@@ -1,0 +1,120 @@
+import numpy as np
+
+
+class DebugDraw:
+    ctx = None
+    lines = []
+
+    @classmethod
+    def init(cls, ctx):
+        cls.ctx = ctx
+
+    @classmethod
+    def line(cls, start, end):
+        cls.lines.append((*start, *end))
+
+    @classmethod
+    def clear(cls):
+        cls.lines.clear()
+
+    @classmethod
+    def render(cls, shader, projection=None, view=None):
+        if not cls.lines:
+            return
+
+        # Set MVP matrix for debug rendering (world space)
+        if projection is not None and view is not None:
+            mvp = projection @ view
+            shader.set_uniform_matrix("mvp", mvp)
+
+        # Debug lines render with white color
+        try:
+            shader.set_uniform_vec4("color", (1.0, 1.0, 1.0, 1.0))
+        except Exception:
+            pass
+
+        vertices = []
+        for line in cls.lines:
+            vertices.extend(line[:3])
+            vertices.extend(line[3:])
+
+        vertices = np.array(vertices, dtype="f4")
+
+        vbo = cls.ctx.buffer(vertices.tobytes())
+
+        vao = cls.ctx.simple_vertex_array(shader.program, vbo, "in_position")
+
+        vao.render(mode=cls.ctx.LINES)
+
+        vbo.release()
+        vao.release()
+
+    @classmethod
+    def grid(cls, size=10, step=1):
+        for i in range(-size, size + 1, step):
+            cls.line((i, 0, -size), (i, 0, size))
+            cls.line((-size, 0, i), (size, 0, i))
+
+    @classmethod
+    def box(cls, center, size):
+        x, y, z = center
+        if isinstance(size, (list, tuple)):
+            sx, sy, sz = size[0] / 2, size[1] / 2, size[2] / 2
+        else:
+            sx = sy = sz = size / 2
+
+        # Bottom face
+        cls.line((x - sx, y - sy, z - sz), (x + sx, y - sy, z - sz))
+        cls.line((x + sx, y - sy, z - sz), (x + sx, y - sy, z + sz))
+        cls.line((x + sx, y - sy, z + sz), (x - sx, y - sy, z + sz))
+        cls.line((x - sx, y - sy, z + sz), (x - sx, y - sy, z - sz))
+
+        # Top face
+        cls.line((x - sx, y + sy, z - sz), (x + sx, y + sy, z - sz))
+        cls.line((x + sx, y + sy, z - sz), (x + sx, y + sy, z + sz))
+        cls.line((x + sx, y + sy, z + sz), (x - sx, y + sy, z + sz))
+        cls.line((x - sx, y + sy, z + sz), (x - sx, y + sy, z - sz))
+
+        # Vertical edges
+        cls.line((x - sx, y - sy, z - sz), (x - sx, y + sy, z - sz))
+        cls.line((x + sx, y - sy, z - sz), (x + sx, y + sy, z - sz))
+        cls.line((x + sx, y - sy, z + sz), (x + sx, y + sy, z + sz))
+        cls.line((x - sx, y - sy, z + sz), (x - sx, y + sy, z + sz))
+
+    @classmethod
+    def axis(cls, length=5):
+        cls.line((0, 0, 0), (length, 0, 0))
+        cls.line((0, 0, 0), (0, length, 0))
+        cls.line((0, 0, 0), (0, 0, length))
+
+    @classmethod
+    def grid_2d(cls, size=10, step=1):
+        for i in range(-size, size + 1, step):
+            cls.line((i, -size, 0), (i, size, 0))
+            cls.line((-size, i, 0), (size, i, 0))
+
+    @classmethod
+    def axis_at(cls, center, length=1.0):
+        x, y, z = center
+        cls.line((x, y, z), (x + length, y, z))
+        cls.line((x, y, z), (x, y + length, z))
+        cls.line((x, y, z), (x, y, z + length))
+
+    @classmethod
+    def transform_gizmo(cls, center, scale=(1.0, 1.0, 1.0)):
+        # Axis gizmo at the object transform position
+        cls.axis_at(center, length=1.2)
+
+        # Wireframe box around object for transform visualization
+        if isinstance(scale, (list, tuple, np.ndarray)):
+            if len(scale) == 3:
+                cls.box(
+                    center,
+                    (abs(scale[0]) + 0.2, abs(scale[1]) + 0.2, abs(scale[2]) + 0.2),
+                )
+                return
+        try:
+            s = float(scale)
+            cls.box(center, s + 0.2)
+        except Exception:
+            cls.box(center, 1.2)
